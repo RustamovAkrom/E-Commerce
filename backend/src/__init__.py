@@ -1,0 +1,1 @@
+"""ECommerce platform backend package."""
