@@ -11,12 +11,10 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from src.config import settings
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class TokenType(StrEnum):
@@ -25,12 +23,26 @@ class TokenType(StrEnum):
 
 
 # --- Passwords --------------------------------------------------------------
+# bcrypt operates on at most 72 bytes; longer inputs are silently truncated by
+# the algorithm, so we truncate explicitly to keep hashing and verification
+# consistent (passlib is unmaintained and incompatible with bcrypt >= 4).
+_BCRYPT_MAX_BYTES = 72
+
+
+def _to_bcrypt_bytes(plain: str) -> bytes:
+    return plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+
+
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    hashed = bcrypt.hashpw(_to_bcrypt_bytes(plain), bcrypt.gensalt())
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(_to_bcrypt_bytes(plain), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 
 # --- JWT --------------------------------------------------------------------
