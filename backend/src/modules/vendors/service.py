@@ -15,7 +15,6 @@ from src.core.enums import UserRole
 from src.core.exceptions import (
     AlreadyExistsError,
     NotFoundError,
-    ValidationError,
 )
 from src.core.pagination import Page, PaginationParams
 from src.modules.users.repository import UserRepository

@@ -82,8 +82,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "S105", "S106"]
+"tests/**/*.py" = ["S101", "S105", "S106", "S107"]
 "alembic/**/*.py" = ["E501"]
+# manage.py is a dev task runner: it deliberately shells out to uv/ruff/etc.
+"manage.py" = ["S603", "S605", "S607"]
 
 [tool.mypy]
 python_version = "3.12"

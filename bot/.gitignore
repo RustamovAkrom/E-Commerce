@@ -1,0 +1,13 @@
+.venv/
+venv/
+ENV/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# uv
+.uv/

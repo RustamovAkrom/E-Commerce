@@ -41,7 +41,7 @@ class Order(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     shipping_address: Mapped[dict] = mapped_column(JSONType, nullable=False)
     note: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
-    items: Mapped[list["OrderItem"]] = relationship(
+    items: Mapped[list[OrderItem]] = relationship(
         "OrderItem",
         back_populates="order",
         cascade="all, delete-orphan",
@@ -65,4 +65,4 @@ class OrderItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
-    order: Mapped["Order"] = relationship("Order", back_populates="items")
+    order: Mapped[Order] = relationship("Order", back_populates="items")

@@ -40,7 +40,7 @@ class Category(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    parent: Mapped["Category | None"] = relationship(
+    parent: Mapped[Category | None] = relationship(
         "Category", remote_side="Category.id", backref="children"
     )
 
@@ -73,13 +73,13 @@ class Product(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
         Boolean, default=True, nullable=False, index=True
     )
 
-    images: Mapped[list["ProductImage"]] = relationship(
+    images: Mapped[list[ProductImage]] = relationship(
         "ProductImage",
         back_populates="product",
         cascade="all, delete-orphan",
         order_by="ProductImage.sort_order",
     )
-    attributes: Mapped[list["ProductAttribute"]] = relationship(
+    attributes: Mapped[list[ProductAttribute]] = relationship(
         "ProductAttribute",
         back_populates="product",
         cascade="all, delete-orphan",
@@ -98,7 +98,7 @@ class ProductImage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    product: Mapped["Product"] = relationship("Product", back_populates="images")
+    product: Mapped[Product] = relationship("Product", back_populates="images")
 
 
 class ProductAttribute(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -115,4 +115,4 @@ class ProductAttribute(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     key: Mapped[str] = mapped_column(String(128), nullable=False)
     value: Mapped[str] = mapped_column(String(512), nullable=False)
 
-    product: Mapped["Product"] = relationship("Product", back_populates="attributes")
+    product: Mapped[Product] = relationship("Product", back_populates="attributes")

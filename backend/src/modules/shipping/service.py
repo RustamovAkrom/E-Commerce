@@ -31,7 +31,6 @@ from src.modules.shipping.models import (
     Shipment,
     ShipmentStatus,
     ShippingAddress,
-    ShippingMethod,
 )
 from src.modules.shipping.providers import RateQuote, get_carrier
 from src.modules.shipping.repository import (

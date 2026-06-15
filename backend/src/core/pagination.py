@@ -49,7 +49,7 @@ class Page(BaseModel, Generic[T]):
     @classmethod
     def create(
         cls, items: list[T], total: int, params: PaginationParams
-    ) -> "Page[T]":
+    ) -> Page[T]:
         pages = (total + params.size - 1) // params.size if params.size else 0
         return cls(
             items=items,
@@ -59,7 +59,7 @@ class Page(BaseModel, Generic[T]):
             pages=pages,
         )
 
-    def map(self, fn: Callable[[T], R]) -> "Page[R]":
+    def map(self, fn: Callable[[T], R]) -> Page[R]:
         """Return a new page with each item transformed by ``fn``.
 
         Used by routers to convert a page of ORM objects into a page of
