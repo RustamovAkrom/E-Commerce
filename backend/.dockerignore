@@ -1,0 +1,36 @@
+# Dependencies
+.venv
+.venv.*
+__pycache__
+*.pyc
+*.pyo
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Docs
+*.md
+
+# Tests (not needed in production)
+tests
+
+# Dev tools
+.ruff_cache
+.pytest_cache

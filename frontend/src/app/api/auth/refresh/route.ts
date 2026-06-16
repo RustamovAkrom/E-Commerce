@@ -1,0 +1,4 @@
+import { cookies } from "next/headers";
+import { backendAuth, authCookie, cookieOptions, proxyResponse } from "@/lib/api/server-auth";
+import type { TokenPair } from "@/types/api";
+export async function POST() { const store = await cookies(); const refreshToken = store.get(authCookie.refresh)?.value; if (!refreshToken) return Response.json({ message: "Session mavjud emas." }, { status: 401 }); const response = await backendAuth("/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: refreshToken }) }); if (!response.ok) { store.delete(authCookie.refresh); store.delete(authCookie.role); return proxyResponse(response); } const tokens = await response.json() as TokenPair; store.set(authCookie.refresh, tokens.refresh_token, cookieOptions); return Response.json({ ...tokens, refresh_token: "" }); }
