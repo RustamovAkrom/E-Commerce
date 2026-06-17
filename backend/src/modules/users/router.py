@@ -11,7 +11,9 @@ from src.core.dependencies import (
     CurrentUser,
     DbSession,
     require_admin,
+    require_superadmin,
 )
+from src.core.exceptions import ValidationError
 from src.core.pagination import Page, PaginationParams
 from src.core.schemas import MessageResponse
 from src.modules.users.schemas import (
@@ -92,5 +94,37 @@ async def admin_update_user(
     data: UserAdminUpdateRequest,
     db: DbSession,
 ) -> UserResponse:
+    user = await UserService(db).admin_update(user_id, data)
+    return UserResponse.model_validate(user)
+
+
+@router.patch(
+    "/{user_id}/role",
+    response_model=UserResponse,
+    dependencies=[Depends(require_superadmin)],
+)
+async def update_user_role(
+    user_id: uuid.UUID,
+    data: UserAdminUpdateRequest,
+    db: DbSession,
+) -> UserResponse:
+    """Only SUPERADMIN can change user roles."""
+    user = await UserService(db).admin_update(user_id, data)
+    return UserResponse.model_validate(user)
+
+
+@router.patch(
+    "/{user_id}/status",
+    response_model=UserResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def toggle_user_status(
+    user_id: uuid.UUID,
+    data: UserAdminUpdateRequest,
+    db: DbSession,
+) -> UserResponse:
+    """ADMIN+ can activate/deactivate users."""
+    if data.is_active is None:
+        raise ValidationError("is_active field is required.")
     user = await UserService(db).admin_update(user_id, data)
     return UserResponse.model_validate(user)

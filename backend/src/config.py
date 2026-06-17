@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
     # --- Feature flags ------------------------------------------------------
-    MARKETPLACE_MODE: bool = False        # False = single shop, True = multi-vendor
     ELASTICSEARCH_ENABLED: bool = False   # Toggle full-text search
     TELEGRAM_BOT_ENABLED: bool = True
 
@@ -98,8 +97,18 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
 
+    # --- Superadmin (auto-created on first startup) -------------------------
+    ADMIN_EMAIL: str = "admin@example.com"
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "changeme123"
+    ADMIN_FULL_NAME: str = "Super Admin"
+
+    # --- Tooling ------------------------------------------------------------
+    # SQLAdmin database UI at /admin/db. Enabled in DEBUG mode or explicitly.
+    SQLADMIN_ENABLED: bool = False
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", ".env.backend"),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=True,

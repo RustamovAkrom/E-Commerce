@@ -11,7 +11,9 @@ from enum import StrEnum
 
 class UserRole(StrEnum):
     CUSTOMER = "customer"
+    OPERATOR = "operator"
     VENDOR = "vendor"
+    COURIER = "courier"
     ADMIN = "admin"
     SUPERADMIN = "superadmin"
 
@@ -61,6 +63,8 @@ class NotificationType(StrEnum):
 ROLE_RANK: dict[UserRole, int] = {
     UserRole.CUSTOMER: 0,
     UserRole.VENDOR: 1,
-    UserRole.ADMIN: 2,
-    UserRole.SUPERADMIN: 3,
+    UserRole.COURIER: 1,
+    UserRole.OPERATOR: 2,
+    UserRole.ADMIN: 3,
+    UserRole.SUPERADMIN: 4,
 }

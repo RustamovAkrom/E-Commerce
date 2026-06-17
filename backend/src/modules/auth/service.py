@@ -91,16 +91,31 @@ class AuthService:
             raise AuthenticationError("Wrong token type.")
 
         jti = payload.get("jti")
-        stored = await self.redis.get(f"{REFRESH_PREFIX}{jti}") if jti else None
+        if not jti:
+            raise AuthenticationError("Invalid refresh token.")
+
+        stored = await self.redis.get(f"{REFRESH_PREFIX}{jti}")
         if stored is None:
             raise AuthenticationError("Refresh token has been revoked or expired.")
+
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            raise AuthenticationError("Invalid refresh token.")
+
+        try:
+            user_id = uuid.UUID(user_id_str)
+        except (ValueError, AttributeError):
+            raise AuthenticationError("Invalid refresh token.") from None
+
+        user = await self.users.get(user_id)
+        if not user:
+            raise AuthenticationError("User not found.")
+        if not user.is_active:
+            raise AuthenticationError("User is inactive.")
 
         # Rotate: invalidate the presented refresh token.
         await self.redis.delete(f"{REFRESH_PREFIX}{jti}")
 
-        user = await self.users.get(uuid.UUID(payload["sub"]))
-        if not user.is_active:
-            raise AuthenticationError("User is inactive.")
         return await self._issue_pair(user)
 
     async def logout(self, access_token: str, refresh_token: str) -> None:

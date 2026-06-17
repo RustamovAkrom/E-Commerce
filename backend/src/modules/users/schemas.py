@@ -36,7 +36,7 @@ class PasswordChangeRequest(StrictSchema):
 
 class UserResponse(ORMSchema):
     id: uuid.UUID
-    email: EmailStr
+    email: str
     full_name: str | None
     phone: str | None
     role: UserRole

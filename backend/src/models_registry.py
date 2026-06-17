@@ -14,6 +14,7 @@ from src.modules.catalog.models import (  # noqa: F401
     ProductAttribute,
     ProductImage,
 )
+from src.modules.delivery.models import Courier, DeliveryAssignment  # noqa: F401
 from src.modules.inventory.models import StockMovement  # noqa: F401
 from src.modules.notifications.models import Notification  # noqa: F401
 from src.modules.orders.models import Order, OrderItem  # noqa: F401

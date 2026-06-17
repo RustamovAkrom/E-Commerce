@@ -37,6 +37,10 @@ dependencies = [
     # Search (optional)
     "elasticsearch[async]>=8.13.0",
     "requests>=2.34.2",
+    "sqladmin>=0.27.2",
+    "fakeredis>=2.36.1",
+    "pytest-asyncio>=1.4.0",
+    "aiosqlite>=0.22.1",
 ]
 
 [project.optional-dependencies]
@@ -79,6 +83,7 @@ select = [
 ignore = [
     "B008",  # do not perform function calls in argument defaults (FastAPI Depends)
     "S101",  # assert (allowed in tests)
+    "F821",  # undefined name — false positives for lazy string relationships in SQLAlchemy models
 ]
 
 [tool.ruff.lint.per-file-ignores]

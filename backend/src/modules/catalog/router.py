@@ -7,7 +7,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
-from src.core.dependencies import DbSession, require_admin
+from src.core.dependencies import (
+    DbSession,
+    require_role,
+)
+from src.core.enums import UserRole
 from src.core.pagination import Page, PaginationParams
 from src.core.schemas import MessageResponse
 from src.modules.catalog.filters import ProductFilters, product_filters
@@ -36,7 +40,7 @@ async def list_categories(db: DbSession) -> list[CategoryResponse]:
     "/categories",
     response_model=CategoryResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def create_category(
     data: CategoryCreateRequest, db: DbSession
@@ -48,7 +52,7 @@ async def create_category(
 @router.patch(
     "/categories/{category_id}",
     response_model=CategoryResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def update_category(
     category_id: uuid.UUID, data: CategoryUpdateRequest, db: DbSession
@@ -60,7 +64,7 @@ async def update_category(
 @router.delete(
     "/categories/{category_id}",
     response_model=MessageResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def delete_category(
     category_id: uuid.UUID, db: DbSession
@@ -97,7 +101,7 @@ async def get_product(product_id: uuid.UUID, db: DbSession) -> ProductDetailResp
     "/products",
     response_model=ProductDetailResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def create_product(
     data: ProductCreateRequest, db: DbSession
@@ -109,7 +113,7 @@ async def create_product(
 @router.patch(
     "/products/{product_id}",
     response_model=ProductDetailResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def update_product(
     product_id: uuid.UUID, data: ProductUpdateRequest, db: DbSession
@@ -121,7 +125,7 @@ async def update_product(
 @router.delete(
     "/products/{product_id}",
     response_model=MessageResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def delete_product(
     product_id: uuid.UUID, db: DbSession

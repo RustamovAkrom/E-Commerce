@@ -48,8 +48,7 @@ class Category(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
 class Product(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "products"
 
-    # Nullable so the platform works in single-vendor mode; populated only
-    # when MARKETPLACE_MODE is enabled.
+    # Nullable so admin/platform-level products can exist without a vendor.
     vendor_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("vendors.id", ondelete="CASCADE"),
         index=True,

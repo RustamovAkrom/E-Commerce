@@ -25,8 +25,9 @@ Dockerfile
 docker-compose*.yml
 .dockerignore
 
-# Docs
+# Docs — keep README.md (hatchling requires it for the package build)
 *.md
+!README.md
 
 # Tests (not needed in production)
 tests

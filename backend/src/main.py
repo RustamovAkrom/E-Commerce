@@ -1,8 +1,8 @@
 """FastAPI application factory.
 
 Wires together configuration, middleware, exception handling, observability and
-every module router. The ``vendors`` router is mounted only when
-``MARKETPLACE_MODE`` is enabled, keeping the single-vendor deployment lean.
+every module router. The platform is always a multi-vendor marketplace, so the
+``vendors`` router is mounted unconditionally.
 
 Run with: ``uvicorn src.main:app``.
 """
@@ -24,7 +24,20 @@ from slowapi.middleware import SlowAPIMiddleware
 # Base.metadata before the app (and Alembic) touch the database.
 import src.models_registry  # noqa: F401
 from src.admin.router import router as admin_router
+from src.admin.sqladmin_setup import (
+    CategoryAdmin,
+    CourierAdmin,
+    DeliveryAssignmentAdmin,
+    OrderAdmin,
+    OrderItemAdmin,
+    ProductAdmin,
+    ProductImageAdmin,
+    StockMovementAdmin,
+    UserAdmin,
+    VendorAdmin,
+)
 from src.config import settings
+from src.core.database import engine
 from src.core.exceptions import AppException
 from src.core.middleware import register_middleware
 from src.core.rate_limit import limiter
@@ -32,6 +45,7 @@ from src.core.redis import close_redis
 from src.modules.auth.router import router as auth_router
 from src.modules.cart.router import router as cart_router
 from src.modules.catalog.router import router as catalog_router
+from src.modules.delivery.router import router as delivery_router
 from src.modules.inventory.router import router as inventory_router
 from src.modules.notifications.router import router as notifications_router
 from src.modules.orders.router import router as orders_router
@@ -51,8 +65,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         "startup",
         app=settings.APP_NAME,
         version=settings.APP_VERSION,
-        marketplace=settings.MARKETPLACE_MODE,
     )
+    # Auto-provision the superadmin on first boot.
+    from src.core.database import async_session_maker
+    from src.core.startup import create_superadmin
+
+    async with async_session_maker() as session:
+        await create_superadmin(session)
+        await session.commit()
     yield
     await close_redis()
     logger.info("shutdown")
@@ -94,6 +114,22 @@ def _register_exception_handlers(app: FastAPI) -> None:
             },
         )
 
+    @app.exception_handler(Exception)
+    async def _handle_unexpected(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
+        """Catch-all: log + capture to Sentry, never leak internals."""
+        logger.exception("unhandled_exception", path=str(request.url.path))
+        if settings.SENTRY_DSN:
+            sentry_sdk.capture_exception(exc)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "internal_error",
+                "message": "Something went wrong. Please try again.",
+            },
+        )
+
 
 def _register_routers(app: FastAPI) -> None:
     api = settings.API_V1_PREFIX
@@ -113,6 +149,9 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(
         shipping_router, prefix=f"{api}/shipping", tags=["shipping"]
     )
+    app.include_router(
+        delivery_router, prefix=f"{api}/delivery", tags=["delivery"]
+    )
     # Reviews paths are product- and review-scoped; mount at the API root.
     app.include_router(reviews_router, prefix=api, tags=["reviews"])
     app.include_router(
@@ -122,11 +161,31 @@ def _register_routers(app: FastAPI) -> None:
     )
     app.include_router(admin_router, prefix=f"{api}/admin", tags=["admin"])
 
-    # Marketplace-only: vendor storefronts.
-    if settings.MARKETPLACE_MODE:
-        app.include_router(
-            vendors_router, prefix=f"{api}/vendors", tags=["vendors"]
-        )
+    # Multi-vendor marketplace — vendors are always active.
+    app.include_router(
+        vendors_router, prefix=f"{api}/vendors", tags=["vendors"]
+    )
+
+    # ─── SQLAdmin panel ──────────────────────────────────────────────────
+    from src.core.database import async_session_maker
+    from sqladmin import Admin
+
+    admin = Admin(
+        app,
+        session_maker=async_session_maker,
+        base_url="/admin/panel",
+        title="Platform Admin",
+    )
+    admin.add_view(ProductAdmin)
+    admin.add_view(CategoryAdmin)
+    admin.add_view(ProductImageAdmin)
+    admin.add_view(StockMovementAdmin)
+    admin.add_view(OrderAdmin)
+    admin.add_view(OrderItemAdmin)
+    admin.add_view(UserAdmin)
+    admin.add_view(VendorAdmin)
+    admin.add_view(CourierAdmin)
+    admin.add_view(DeliveryAssignmentAdmin)
 
 
 def create_app() -> FastAPI:

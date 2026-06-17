@@ -11,7 +11,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
-from src.core.dependencies import CurrentUser, DbSession, require_admin
+from src.core.dependencies import (
+    CurrentUser,
+    DbSession,
+    require_role,
+)
+from src.core.enums import UserRole
 from src.core.pagination import Page, PaginationParams
 from src.core.schemas import MessageResponse
 from src.modules.vendors.schemas import (
@@ -83,7 +88,7 @@ async def update_my_vendor(
 @router.get(
     "/admin/all",
     response_model=Page[VendorResponse],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def list_all_vendors(
     db: DbSession,
@@ -96,7 +101,7 @@ async def list_all_vendors(
 @router.get(
     "/{vendor_id}",
     response_model=VendorResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def get_vendor(
     vendor_id: uuid.UUID,
@@ -109,7 +114,7 @@ async def get_vendor(
 @router.patch(
     "/{vendor_id}",
     response_model=VendorResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def admin_update_vendor(
     vendor_id: uuid.UUID,
@@ -123,7 +128,7 @@ async def admin_update_vendor(
 @router.delete(
     "/{vendor_id}",
     response_model=MessageResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def delete_vendor(
     vendor_id: uuid.UUID,

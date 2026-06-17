@@ -6,7 +6,8 @@ import uuid
 
 from fastapi import APIRouter, Depends
 
-from src.core.dependencies import DbSession, require_admin
+from src.core.dependencies import DbSession, require_role
+from src.core.enums import UserRole
 from src.modules.inventory.schemas import (
     StockAdjustRequest,
     StockLevelResponse,
@@ -27,7 +28,7 @@ async def get_stock_level(
 @router.post(
     "/adjust",
     response_model=StockLevelResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
 )
 async def adjust_stock(
     data: StockAdjustRequest, db: DbSession
