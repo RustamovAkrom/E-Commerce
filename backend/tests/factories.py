@@ -38,9 +38,13 @@ class UserFactory:
         full_name: str = "Test User",
         is_active: bool = True,
         is_verified: bool = True,
+        username: str | None = None,
     ) -> User:
+        if username is None:
+            username = (email or f"user-{_suffix()}@example.com").split("@")[0]
         user = User(
             email=(email or f"user-{_suffix()}@example.com").lower(),
+            username=username,
             hashed_password=hash_password(password),
             full_name=full_name,
             role=role,

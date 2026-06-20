@@ -16,7 +16,6 @@ class VendorApplyRequest(StrictSchema):
     """A user applies to become a vendor."""
 
     name: str = Field(min_length=1, max_length=255)
-    slug: str = Field(min_length=1, max_length=255, pattern=r"^[a-z0-9-]+$")
     description: str | None = Field(default=None, max_length=4000)
     contact_email: EmailStr | None = None
     contact_phone: str | None = Field(default=None, max_length=32)

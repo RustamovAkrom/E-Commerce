@@ -10,16 +10,22 @@ import uuid
 from typing import Any
 
 from sqladmin import ModelView
+from sqladmin.filters import (
+    BooleanFilter,
+    ForeignKeyFilter,
+    OperationColumnFilter,
+    StaticValuesFilter,
+)
 
 from src.core.database import async_session_maker
-from src.core.enums import UserRole
+from src.core.enums import OrderStatus, UserRole
 from src.core.security import decode_token
 from src.modules.catalog.models import Category, Product, ProductImage
-from src.modules.delivery.models import Courier, DeliveryAssignment
-from src.modules.inventory.models import StockMovement
+from src.modules.delivery.models import Courier, DeliveryAssignment, DeliveryStatus
+from src.modules.inventory.models import MovementReason, StockMovement
 from src.modules.orders.models import Order, OrderItem
 from src.modules.users.models import User
-from src.modules.vendors.models import Vendor
+from src.modules.vendors.models import Vendor, VendorStatus
 
 # ─── Auth helper ────────────────────────────────────────────────────────────
 
@@ -74,22 +80,30 @@ class AuthenticatedView(ModelView):
 
 class ProductAdmin(AuthenticatedView, model=Product):
     name = "Products"
-    column_list = ("id", "name", "price", "stock", "is_active", "category_id")
+    column_list = ("id", "name", "price", "stock", "is_active", "category")
     column_details_list = (
         "id", "name", "slug", "description", "sku",
         "price", "currency", "stock", "is_active",
-        "category_id", "vendor_id", "images",
+        "category", "vendor", "images",
     )
     form_columns = (
-        "name", "slug", "description", "sku",
+        "name", "description", "sku",
         "price", "currency", "stock", "is_active",
-        "category_id", "vendor_id",
+        "category", "vendor",
     )
+    form_formatters = {
+        "category": lambda m, a: m.category.name if m.category else None,
+        "vendor": lambda m, a: m.vendor.name if m.vendor else None,
+    }
     can_create = True
     can_edit = True
     can_delete = True
     column_searchable_list = ("name", "sku", "slug")
-    column_filters = ("is_active", "category_id", "vendor_id")
+    column_filters = (
+        BooleanFilter(Product.is_active, "Active"),
+        ForeignKeyFilter(Product.category_id, Category.name, Category, "Category"),
+        ForeignKeyFilter(Product.vendor_id, Vendor.name, Vendor, "Vendor"),
+    )
 
 
 class CategoryAdmin(AuthenticatedView, model=Category):
@@ -97,14 +111,17 @@ class CategoryAdmin(AuthenticatedView, model=Category):
     column_list = ("id", "name", "slug", "is_active", "sort_order")
     column_details_list = (
         "id", "name", "slug", "description",
-        "parent_id", "is_active", "sort_order",
+        "parent", "is_active", "sort_order",
     )
-    form_columns = ("name", "slug", "description", "parent_id", "is_active", "sort_order")
+    form_columns = ("name", "description", "parent", "is_active", "sort_order")
     can_create = True
     can_edit = True
     can_delete = True
     column_searchable_list = ("name", "slug")
-    column_filters = ("is_active", "parent_id")
+    column_filters = (
+        BooleanFilter(Category.is_active, "Active"),
+        ForeignKeyFilter(Category.parent_id, Category.name, Category, "Parent"),
+    )
 
 
 class ProductImageAdmin(AuthenticatedView, model=ProductImage):
@@ -124,7 +141,13 @@ class StockMovementAdmin(AuthenticatedView, model=StockMovement):
     can_edit = False
     can_delete = False
     column_searchable_list = ("product_id", "reference")
-    column_filters = ("reason",)
+    column_filters = (
+        StaticValuesFilter(
+            StockMovement.reason,
+            [(r.value, r.value) for r in MovementReason] + [("", "All")],
+            "Reason",
+        ),
+    )
 
 
 # ─── Order views (OPERATOR+) ───────────────────────────────────────────────
@@ -140,7 +163,13 @@ class OrderAdmin(AuthenticatedView, model=Order):
     can_create = False
     can_delete = False
     column_searchable_list = ("id",)
-    column_filters = ("status",)
+    column_filters = (
+        StaticValuesFilter(
+            Order.status,
+            [(s.value, s.value) for s in OrderStatus] + [("", "All")],
+            "Status",
+        ),
+    )
 
 
 class OrderItemAdmin(AuthenticatedView, model=OrderItem):
@@ -156,17 +185,25 @@ class OrderItemAdmin(AuthenticatedView, model=OrderItem):
 
 class UserAdmin(AuthenticatedView, model=User):
     name = "Users"
-    column_list = ("id", "email", "role", "is_active", "is_verified", "created_at")
+    column_list = ("id", "username", "email", "role", "is_active", "is_verified", "created_at")
     column_details_list = (
-        "id", "email", "full_name", "phone",
+        "id", "username", "email", "full_name", "phone",
         "role", "is_active", "is_verified",
         "created_at",
     )
     form_edit_columns = ("role", "is_active", "is_verified")
     can_create = False
     can_delete = False
-    column_searchable_list = ("email", "full_name")
-    column_filters = ("role", "is_active", "is_verified")
+    column_searchable_list = ("username", "email", "full_name")
+    column_filters = (
+        StaticValuesFilter(
+            User.role,
+            [(r.value, r.value) for r in UserRole] + [("", "All")],
+            "Role",
+        ),
+        BooleanFilter(User.is_active, "Active"),
+        BooleanFilter(User.is_verified, "Verified"),
+    )
 
 
 # ─── Vendor views (ADMIN+) ─────────────────────────────────────────────────
@@ -175,14 +212,22 @@ class VendorAdmin(AuthenticatedView, model=Vendor):
     name = "Vendors"
     column_list = ("id", "name", "slug", "status", "is_active", "created_at")
     column_details_list = (
-        "id", "user_id", "name", "slug", "description",
+        "id", "user", "name", "slug", "description",
         "status", "is_active", "commission_rate", "created_at",
     )
     form_edit_columns = ("status", "is_active")
+    form_excluded_columns = ("slug",)
     can_create = False
     can_delete = True
     column_searchable_list = ("name", "slug")
-    column_filters = ("status", "is_active")
+    column_filters = (
+        StaticValuesFilter(
+            Vendor.status,
+            [(s.value, s.value) for s in VendorStatus] + [("", "All")],
+            "Status",
+        ),
+        BooleanFilter(Vendor.is_active, "Active"),
+    )
 
 
 # ─── Courier views (ADMIN+) ────────────────────────────────────────────────
@@ -205,4 +250,11 @@ class DeliveryAssignmentAdmin(AuthenticatedView, model=DeliveryAssignment):
     can_create = False
     can_delete = False
     column_searchable_list = ("order_id",)
-    column_filters = ("status", "courier_id")
+    column_filters = (
+        StaticValuesFilter(
+            DeliveryAssignment.status,
+            [(s.value, s.value) for s in DeliveryStatus] + [("", "All")],
+            "Status",
+        ),
+        OperationColumnFilter(DeliveryAssignment.courier_id, "Courier"),
+    )

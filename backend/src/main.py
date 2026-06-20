@@ -19,6 +19,10 @@ from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from src.core.database import async_session_maker
+from sqladmin import Admin
+from src.core.database import async_session_maker
+from src.core.startup import create_superadmin
 
 # Importing the registry guarantees every ORM model is registered on
 # Base.metadata before the app (and Alembic) touch the database.
@@ -67,8 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         version=settings.APP_VERSION,
     )
     # Auto-provision the superadmin on first boot.
-    from src.core.database import async_session_maker
-    from src.core.startup import create_superadmin
+
 
     async with async_session_maker() as session:
         await create_superadmin(session)
@@ -167,8 +170,7 @@ def _register_routers(app: FastAPI) -> None:
     )
 
     # ─── SQLAdmin panel ──────────────────────────────────────────────────
-    from src.core.database import async_session_maker
-    from sqladmin import Admin
+
 
     admin = Admin(
         app,

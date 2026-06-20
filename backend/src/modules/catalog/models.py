@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -13,8 +14,10 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
+    select,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from src.core.database import (
     Base,
@@ -22,6 +25,7 @@ from src.core.database import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
 )
+from src.core.utils import generate_slug
 
 
 class Category(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
@@ -43,6 +47,11 @@ class Category(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     parent: Mapped[Category | None] = relationship(
         "Category", remote_side="Category.id", backref="children"
     )
+
+    @validates("name")
+    def _generate_slug_from_name(self, key: str, name: str) -> str:  # noqa: ARG002
+        self.slug = generate_slug(name)
+        return name
 
 
 class Product(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
@@ -72,6 +81,8 @@ class Product(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
         Boolean, default=True, nullable=False, index=True
     )
 
+    category: Mapped[Category] = relationship("Category", backref="products")
+
     images: Mapped[list[ProductImage]] = relationship(
         "ProductImage",
         back_populates="product",
@@ -83,6 +94,11 @@ class Product(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
         back_populates="product",
         cascade="all, delete-orphan",
     )
+
+    @validates("name")
+    def _generate_slug_from_name(self, key: str, name: str) -> str:  # noqa: ARG002
+        self.slug = generate_slug(name)
+        return name
 
 
 class ProductImage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -115,3 +131,23 @@ class ProductAttribute(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     value: Mapped[str] = mapped_column(String(512), nullable=False)
 
     product: Mapped[Product] = relationship("Product", back_populates="attributes")
+
+
+def _set_unique_slug(connection: Any, model: type[Any], target: Any) -> None:
+    stmt = select(model.slug).where(model.is_deleted.is_(False))
+    if target.id is not None:
+        stmt = stmt.where(model.id != target.id)
+    existing_slugs = set(connection.execute(stmt).scalars().all())
+    target.slug = generate_slug(target.name, existing_slugs)
+
+
+@event.listens_for(Category, "before_insert")
+@event.listens_for(Category, "before_update")
+def _set_unique_category_slug(mapper: Any, connection: Any, target: Category) -> None:  # noqa: ARG001
+    _set_unique_slug(connection, Category, target)
+
+
+@event.listens_for(Product, "before_insert")
+@event.listens_for(Product, "before_update")
+def _set_unique_product_slug(mapper: Any, connection: Any, target: Product) -> None:  # noqa: ARG001
+    _set_unique_slug(connection, Product, target)

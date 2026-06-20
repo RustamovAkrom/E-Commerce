@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.exceptions import AlreadyExistsError, NotFoundError, ValidationError
+from src.core.exceptions import NotFoundError, ValidationError
 from src.core.pagination import Page, PaginationParams
+from src.core.utils import generate_slug
 from src.modules.catalog.filters import ProductFilters
 from src.modules.catalog.models import Category, Product
 from src.modules.catalog.repository import (
@@ -30,11 +30,11 @@ class CategoryService:
         self.repo = CategoryRepository(session)
 
     async def create(self, data: CategoryCreateRequest) -> Category:
-        if await self.repo.get_by_slug(data.slug):
-            raise AlreadyExistsError("A category with this slug already exists.")
         if data.parent_id and not await self.repo.get(data.parent_id):
             raise ValidationError("Parent category does not exist.")
-        return await self.repo.create(data.model_dump())
+        payload = data.model_dump()
+        payload["slug"] = generate_slug(data.name, await self.repo.get_all_slugs())
+        return await self.repo.create(payload)
 
     async def get(self, category_id: uuid.UUID) -> Category:
         category = await self.repo.get(category_id)
@@ -51,7 +51,12 @@ class CategoryService:
         category = await self.get(category_id)
         if data.parent_id == category_id:
             raise ValidationError("A category cannot be its own parent.")
-        return await self.repo.update(category, data.model_dump(exclude_unset=True))
+        payload = data.model_dump(exclude_unset=True)
+        if "name" in payload:
+            payload["slug"] = generate_slug(
+                payload["name"], await self.repo.get_all_slugs(exclude_id=category_id)
+            )
+        return await self.repo.update(category, payload)
 
     async def delete(self, category_id: uuid.UUID) -> None:
         category = await self.get(category_id)
@@ -69,12 +74,8 @@ class ProductService:
         if not await self.categories.get(data.category_id):
             raise ValidationError("Category does not exist.")
         payload = data.model_dump(exclude={"attributes"})
-        try:
-            product = await self.repo.create(payload)
-        except IntegrityError as exc:
-            raise AlreadyExistsError(
-                "A product with this slug already exists."
-            ) from exc
+        payload["slug"] = generate_slug(data.name, await self.repo.get_all_slugs())
+        product = await self.repo.create(payload)
         if data.attributes:
             await self.repo.replace_attributes(
                 product, [a.model_dump() for a in data.attributes]
@@ -112,7 +113,12 @@ class ProductService:
         product = await self.get(product_id)
         if data.category_id and not await self.categories.get(data.category_id):
             raise ValidationError("Category does not exist.")
-        await self.repo.update(product, data.model_dump(exclude_unset=True))
+        payload = data.model_dump(exclude_unset=True)
+        if "name" in payload:
+            payload["slug"] = generate_slug(
+                payload["name"], await self.repo.get_all_slugs(exclude_id=product_id)
+            )
+        await self.repo.update(product, payload)
         return await self.get(product_id)
 
     async def delete(self, product_id: uuid.UUID) -> None:

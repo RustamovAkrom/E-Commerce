@@ -66,6 +66,14 @@ class BaseRepository(Generic[ModelT]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_all_slugs(self, exclude_id: uuid.UUID | None = None) -> set[str]:
+        """Return a set of all non-deleted slugs (excluding a specific id if given)."""
+        stmt = self._base_select().with_only_columns(self.model.slug)  # type: ignore[attr-defined]
+        if exclude_id is not None:
+            stmt = stmt.where(self.model.id != exclude_id)  # type: ignore[attr-defined]
+        result = await self.session.execute(stmt)
+        return {row[0] for row in result.all() if row[0]}
+
     async def count(self, **filters: Any) -> int:
         stmt = select(func.count()).select_from(self.model).filter_by(**filters)
         if self._soft_delete:

@@ -14,7 +14,6 @@ from src.core.schemas import ORMSchema, StrictSchema
 # --- Category ---------------------------------------------------------------
 class CategoryCreateRequest(StrictSchema):
     name: str = Field(min_length=1, max_length=255)
-    slug: str = Field(min_length=1, max_length=255, pattern=r"^[a-z0-9-]+$")
     description: str | None = None
     parent_id: uuid.UUID | None = None
     sort_order: int = 0
@@ -63,7 +62,6 @@ class ProductCreateRequest(StrictSchema):
     category_id: uuid.UUID
     vendor_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=255)
-    slug: str = Field(min_length=1, max_length=255, pattern=r"^[a-z0-9-]+$")
     description: str | None = None
     sku: str | None = Field(default=None, max_length=64)
     price: Decimal = Field(gt=0, max_digits=12, decimal_places=2)

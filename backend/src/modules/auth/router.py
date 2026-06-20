@@ -37,7 +37,16 @@ async def register(
     db: DbSession,
     redis_client: RedisClient,
 ) -> AuthResult:
-    user, tokens = await AuthService(db, redis_client).register(data)
+    from src.modules.users.schemas import UserCreateRequest
+
+    user_create = UserCreateRequest(
+        email=data.email,
+        username=data.username,
+        password=data.password,
+        full_name=data.full_name,
+        phone=data.phone,
+    )
+    user, tokens = await AuthService(db, redis_client).register(user_create)
     return AuthResult(user=UserResponse.model_validate(user), tokens=tokens)
 
 
@@ -49,7 +58,7 @@ async def login(
     redis_client: RedisClient,
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> AuthResult:
-    # OAuth2 password flow uses ``username`` for the email field.
+    # Accept username OR email in the OAuth2 ``username`` field
     user, tokens = await AuthService(db, redis_client).login(
         form.username, form.password
     )

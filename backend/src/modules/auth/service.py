@@ -65,6 +65,7 @@ class AuthService:
         user = await self.users.create(
             UserCreateRequest(
                 email=data.email,
+                username=data.username,
                 password=data.password,
                 full_name=data.full_name,
                 phone=data.phone,
@@ -74,10 +75,10 @@ class AuthService:
         tokens = await self._issue_pair(user)
         return user, tokens
 
-    async def login(self, email: str, password: str) -> tuple[User, TokenPair]:
-        user = await self.users.authenticate(email, password)
+    async def login(self, username_or_email: str, password: str) -> tuple[User, TokenPair]:
+        user = await self.users.authenticate(username_or_email, password)
         if user is None:
-            raise AuthenticationError("Incorrect email or password.")
+            raise AuthenticationError("Incorrect username/email or password.")
         tokens = await self._issue_pair(user)
         return user, tokens
 

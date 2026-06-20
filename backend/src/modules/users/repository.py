@@ -12,5 +12,8 @@ class UserRepository(BaseRepository[User]):
     async def get_by_email(self, email: str) -> User | None:
         return await self.get_by(email=email.lower())
 
+    async def get_by_username(self, username: str) -> User | None:
+        return await self.get_by(username=username)
+
     async def get_by_telegram_id(self, telegram_id: int) -> User | None:
         return await self.get_by(telegram_id=telegram_id)

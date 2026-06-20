@@ -10,6 +10,7 @@ from src.modules.users.schemas import UserResponse
 
 class RegisterRequest(StrictSchema):
     email: EmailStr
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_]+$")
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=255)
     phone: str | None = Field(default=None, max_length=32)

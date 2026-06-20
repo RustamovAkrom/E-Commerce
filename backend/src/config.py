@@ -8,8 +8,23 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from urllib.parse import quote
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _parse_bool(value: object) -> bool:
+    """Coerce string values like 'release', 'true', '1' etc. to bool."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        low = value.strip().lower()
+        if low in ("true", "1", "yes", "on"):
+            return True
+        if low in ("false", "0", "no", "off"):
+            return False
+    return bool(value)
 
 
 class Settings(BaseSettings):
@@ -34,7 +49,14 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_TTL_SECONDS: int = 60 * 60 * 24 * 30  # 30 days
 
     # --- Database -----------------------------------------------------------
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/ecommerce"
+    DATABASE_HOST: str = "postgres"
+    DATABASE_PORT: int = 5432
+    DATABASE_USER: str = "ecommerce"
+    DATABASE_PASSWORD: str = "postgres"
+    DATABASE_NAME: str = "ecommerce"
+    DATABASE_ASYNC_DRIVER: str = "asyncpg"
+    DATABASE_SYNC_DRIVER: str = "psycopg2"
+
     DATABASE_POOL_SIZE: int = 10
     DATABASE_MAX_OVERFLOW: int = 20
     DATABASE_ECHO: bool = False
@@ -107,6 +129,12 @@ class Settings(BaseSettings):
     # SQLAdmin database UI at /admin/db. Enabled in DEBUG mode or explicitly.
     SQLADMIN_ENABLED: bool = False
 
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug(cls, value: object) -> bool:
+        """Coerce string values like 'release', 'true', '1' to bool."""
+        return _parse_bool(value)
+
     model_config = SettingsConfigDict(
         env_file=(".env", ".env.backend"),
         env_file_encoding="utf-8",
@@ -114,20 +142,27 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    @field_validator("DATABASE_URL")
-    @classmethod
-    def _validate_async_driver(cls, v: str) -> str:
-        """Ensure the database URL uses an async-capable driver."""
-        if v and "+asyncpg" not in v and "+aiosqlite" not in v:
-            raise ValueError(
-                "DATABASE_URL must use an async driver "
-                "(e.g. postgresql+asyncpg:// or sqlite+aiosqlite://)"
-            )
-        return v
+    @property
+    def DATABASE_URL(self) -> str:
+        if self.is_sqlite:
+            return f"sqlite+aiosqlite:///{self.DATABASE_NAME}"
+        return (
+            f"postgresql+{self.DATABASE_ASYNC_DRIVER}://{quote(self.DATABASE_USER)}:{quote(self.DATABASE_PASSWORD)}"
+            f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+        )
+
+    @property
+    def SYNC_DATABASE_URL(self) -> str:
+        if self.is_sqlite:
+            return f"sqlite+{self.DATABASE_SYNC_DRIVER}:///{self.DATABASE_NAME}"
+        return (
+            f"postgresql+{self.DATABASE_SYNC_DRIVER}://{quote(self.DATABASE_USER)}:{quote(self.DATABASE_PASSWORD)}"
+            f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+        )
 
     @property
     def is_sqlite(self) -> bool:
-        return self.DATABASE_URL.startswith("sqlite")
+        return self.DATABASE_NAME.endswith(".db")
 
 
 @lru_cache

@@ -12,9 +12,10 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 from enum import StrEnum
+from typing import Any
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Numeric, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, Enum, ForeignKey, Numeric, String, Text, event, select
+from sqlalchemy.orm import Mapped, mapped_column, validates, relationship
 
 from src.core.database import (
     Base,
@@ -22,6 +23,8 @@ from src.core.database import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
 )
+from src.modules.users.models import User
+from src.core.utils import generate_slug
 
 
 class VendorStatus(StrEnum):
@@ -60,3 +63,20 @@ class Vendor(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     commission_rate: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), default=Decimal("0"), nullable=False
     )
+
+    user: Mapped["User"] = relationship("User", back_populates="vendor")
+
+    @validates("name")
+    def _generate_slug_from_name(self, key: str, name: str) -> str:  # noqa: ARG002
+        self.slug = generate_slug(name)
+        return name
+
+
+@event.listens_for(Vendor, "before_insert")
+@event.listens_for(Vendor, "before_update")
+def _set_unique_vendor_slug(mapper: Any, connection: Any, target: Vendor) -> None:  # noqa: ARG001
+    stmt = select(Vendor.slug).where(Vendor.is_deleted.is_(False))
+    if target.id is not None:
+        stmt = stmt.where(Vendor.id != target.id)
+    existing_slugs = set(connection.execute(stmt).scalars().all())
+    target.slug = generate_slug(target.name, existing_slugs)

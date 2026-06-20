@@ -15,11 +15,13 @@ AUTH = "/api/v1/auth"
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 async def _register(
-    client: AsyncClient, email: str, password: str = "password123"
+    client: AsyncClient, email: str, password: str = "password123", username: str | None = None
 ) -> dict:
+    if username is None:
+        username = email.split("@")[0]
     resp = await client.post(
         f"{AUTH}/register",
-        json={"email": email, "password": password, "full_name": "Test User"},
+        json={"email": email, "username": username, "password": password, "full_name": "Test User"},
     )
     return resp
 
@@ -47,11 +49,8 @@ async def test_register_duplicate_email(client: AsyncClient) -> None:
 
 
 async def test_register_minimal_fields(client: AsyncClient) -> None:
-    """Only email + password are mandatory; full_name and phone default to null."""
-    resp = await client.post(
-        f"{AUTH}/register",
-        json={"email": "minimal@example.com", "password": "strongpass1"},
-    )
+    """Only email + password are mandatory; username is auto-generated from email."""
+    resp = await _register(client, "minimal@example.com")
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["tokens"]["access_token"]

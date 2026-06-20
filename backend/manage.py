@@ -13,6 +13,7 @@ Examples
     uv run python manage.py makemigration -m "add coupons"
     uv run python manage.py test
     uv run python manage.py verify       # lint + types + import + tests
+    uv run python manage.py createsuperuser -e admin@test.uz -f password123
 
 This script only orchestrates ``uv``/``alembic``/``pytest``/``ruff``/``mypy``/
 ``uvicorn`` subprocesses — it contains no business logic itself.
@@ -20,6 +21,7 @@ This script only orchestrates ``uv``/``alembic``/``pytest``/``ruff``/``mypy``/
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import sys
@@ -223,6 +225,132 @@ def cmd_shell(extra: list[str]) -> int:
     return run("uv", "run", "python")
 
 
+def cmd_setup_test_db(extra: list[str]) -> int:
+    """Create the test database (ecommerce_test) if it doesn't exist."""
+    import asyncio
+    import asyncpg
+
+    default_db_url = "postgresql://postgres:postgres@localhost:5432/postgres"
+
+    async def _setup() -> int:
+        conn = await asyncpg.connect(default_db_url)
+        try:
+            exists = await conn.fetchval(
+                "SELECT 1 FROM pg_database WHERE datname = $1", "ecommerce_test"
+            )
+            if not exists:
+                await conn.execute("CREATE DATABASE ecommerce_test")
+                print(C.green("Test database created."))
+            else:
+                print(C.yellow("Test database already exists."))
+        finally:
+            await conn.close()
+        return 0
+
+    return asyncio.run(_setup())
+
+
+# --- Superadmin -------------------------------------------------------------
+async def _create_superadmin_cmd(args: list[str]) -> int:
+    """Create or reset a SUPERADMIN user (Django-style createsuperuser)."""
+    from sqlalchemy import select
+    from src.core.database import async_session_maker
+    from src.core.security import hash_password
+    from src.modules.users.models import User
+
+    # Parse CLI flags (--email, --password, --name, --force-password)
+    flags: dict[str, str] = {}
+    i = 0
+    while i < len(args):
+        if args[i] in {"--email", "-e"} and i + 1 < len(args):
+            flags["email"] = args[i + 1]
+            i += 2
+        elif args[i] in {"--password", "-p"} and i + 1 < len(args):
+            flags["password"] = args[i + 1]
+            i += 2
+        elif args[i] in {"--name", "-n"} and i + 1 < len(args):
+            flags["name"] = args[i + 1]
+            i += 2
+        elif args[i] in {"--force-password", "-f"} and i + 1 < len(args):
+            flags["force_password"] = args[i + 1]
+            i += 2
+        else:
+            i += 1
+
+    from src.config import settings
+
+    # Interactive prompts for missing fields
+    if "email" not in flags:
+        flags["email"] = _prompt("Email (superadmin)") or settings.ADMIN_EMAIL
+    if "password" not in flags and "force_password" not in flags:
+        pw1 = _prompt("Password")
+        if not pw1:
+            print(C.red("Password is required."))
+            return 1
+        pw2 = _prompt("Password (again)")
+        if pw1 != pw2:
+            print(C.red("Passwords do not match."))
+            return 1
+        flags["password"] = pw1
+    elif "force_password" in flags:
+        flags["password"] = flags["force_password"]
+    if "name" not in flags:
+        flags["name"] = _prompt("Full name (optional, Enter = skip)") or ""
+
+    async with async_session_maker() as session:
+        # Check if user exists
+        result = await session.execute(
+            select(User).where(User.email == flags["email"])
+        )
+        user = result.scalar_one_or_none()
+
+        if user:
+            # Reset password for existing user
+            print(
+                C.yellow(
+                    f"User {flags['email']} already exists. "
+                    f"Resetting password and ensuring role=SUPERADMIN."
+                )
+            )
+            user.hashed_password = hash_password(flags["password"])
+            user.role = "SUPERADMIN"
+            user.is_active = True
+            user.is_verified = True
+            if flags["name"]:
+                user.full_name = flags["name"]
+        else:
+            # Create new user
+            user = User(
+                email=flags["email"],
+                hashed_password=hash_password(flags["password"]),
+                full_name=flags["name"] or flags["email"].split("@")[0],
+                role="SUPERADMIN",
+                is_active=True,
+                is_verified=True,
+            )
+            session.add(user)
+
+        try:
+            await session.flush()
+        except Exception as exc:
+            await session.rollback()
+            print(C.red(f"Failed: {exc}"))
+            return 1
+
+    print(
+        C.green(
+            f"Superadmin {'updated' if user.id else 'created'}: "
+            f"{flags['email']}"
+        )
+    )
+    return 0
+
+
+def cmd_create_superadmin(extra: list[str]) -> int:
+    """Create or reset a SUPERADMIN user (like Django's createsuperuser)."""
+    return asyncio.run(_create_superadmin_cmd(extra))
+
+
 # --- Command registry -------------------------------------------------------
 @dataclass(frozen=True)
 class Command:
@@ -259,6 +387,18 @@ GROUPS: list[Group] = [
             Command("db-current", "Show current revision", cmd_db_current),
             Command("db-history", "Show migration history", cmd_db_history),
             Command("db-reset", "Downgrade to base then rebuild", cmd_db_reset),
+            Command("setup-test-db", "Create test database (ecommerce_test)", cmd_setup_test_db),
+        ],
+    ),
+    Group(
+        "Users",
+        [
+            Command(
+                "createsuperuser",
+                "Create/reset a SUPERADMIN user (Django-style)",
+                cmd_create_superadmin,
+                ("create-superuser", "superadmin"),
+            ),
         ],
     ),
     Group(

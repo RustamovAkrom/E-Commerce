@@ -4,18 +4,20 @@ Provides an isolated async database, a fake Redis, an HTTP client wired to the
 real ``app`` with its DB/Redis dependencies overridden, and ready-made auth
 headers for a CUSTOMER and an ADMIN user.
 
-Each test gets a fresh file-backed SQLite database. A file (rather than a
-shared-memory) database is used deliberately: the application opens a new
-connection/session per request, and a file database lets those connections see
-each other's committed writes without the single-connection contention of an
-in-memory ``StaticPool``.
+Tests use PostgreSQL (same as production) — no SQLite.
+Database URL is read from ``TEST_DATABASE_URL`` env var, defaulting to
+``postgresql+asyncpg://postgres:postgres@localhost:5432/ecommerce_test``.
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
-import tempfile
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
+from urllib.parse import quote
+
+# Override system DEBUG=release (VS Code sets this) — tests need a boolean
+os.environ.setdefault("DEBUG", "false")
 
 import fakeredis.aioredis
 import pytest_asyncio
@@ -24,12 +26,14 @@ import pytest_asyncio
 # ``create_all`` builds the full schema.
 import src.models_registry  # noqa: F401
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from src.config import settings
 from src.core.database import Base
 from src.core.dependencies import get_db, get_redis_client
 from src.core.enums import UserRole
@@ -38,25 +42,111 @@ from src.core.security import create_access_token
 from src.main import app
 from src.modules.users.models import User
 
+# --- Test database URL (PostgreSQL) -----------------------------------------
+
+
+def _postgres_url(database: str) -> str:
+    return (
+        f"postgresql+asyncpg://{quote(settings.DATABASE_USER)}:"
+        f"{quote(settings.DATABASE_PASSWORD)}@"
+        f"{settings.DATABASE_HOST}:{settings.DATABASE_PORT}/{database}"
+    )
+
+
+TEST_DB_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    _postgres_url("ecommerce_test"),
+)
+TEST_DB_ADMIN_URL = os.getenv(
+    "TEST_DATABASE_ADMIN_URL",
+    _postgres_url("postgres"),
+)
+
+
+@pytest_asyncio.fixture(scope="session")
+def event_loop() -> AsyncGenerator[asyncio.AbstractEventLoop, None]:
+    """Create a single event loop for the test session."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def setup_test_db() -> AsyncGenerator[None, None]:
+    """Create the test database if it doesn't exist."""
+    engine = create_async_engine(TEST_DB_ADMIN_URL, isolation_level="AUTOCOMMIT")
+    try:
+        async with engine.begin() as conn:
+            # Check if test database exists
+            result = await conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = 'ecommerce_test'")
+            )
+            if not result.scalar_one_or_none():
+                await conn.execute(
+                    text("CREATE DATABASE ecommerce_test")
+                )
+    finally:
+        await engine.dispose()
+
+    yield
+
+    # Clean up test database after all tests
+    async with engine.begin() as conn:
+        try:
+            await conn.execute(text("DROP DATABASE IF EXISTS ecommerce_test"))
+        except Exception:
+            pass
+
 
 @pytest_asyncio.fixture
 async def engine() -> AsyncGenerator[AsyncEngine, None]:
-    """A fresh, schema-loaded SQLite database per test."""
-    fd, path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
-    url = f"sqlite+aiosqlite:///{path.replace(os.sep, '/')}"
-    eng = create_async_engine(url, future=True)
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """A fresh PostgreSQL engine for the test database."""
+    eng = create_async_engine(TEST_DB_URL, future=True, pool_size=5)
     try:
+        async with eng.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            # Add username column if it doesn't exist
+            result = await conn.execute(text("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'users' AND column_name = 'username'
+            """))
+            if not result.scalar_one_or_none():
+                await conn.execute(text("""
+                    ALTER TABLE users
+                    ADD COLUMN username VARCHAR(64) NOT NULL DEFAULT ''
+                """))
+                await conn.execute(text("""
+                    UPDATE users
+                    SET username = LOWER(SPLIT_PART(email, '@', 1))
+                    WHERE username = ''
+                """))
+                await conn.execute(text("""
+                    ALTER TABLE users
+                    ADD CONSTRAINT users_username_key UNIQUE (username)
+                """))
         yield eng
     finally:
         await eng.dispose()
-        try:
-            os.unlink(path)
-        except OSError:
-            # On Windows the file may linger briefly after dispose; harmless.
-            pass
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def truncate_tables(engine: AsyncEngine) -> AsyncGenerator[None, None]:
+    """Truncate all tables before each test to ensure isolation."""
+    yield
+    tables = [
+        "order_items", "payments", "reviews", "product_images",
+        "product_attributes", "delivery_assignments", "shipments",
+        "shipping_addresses", "stock_movements", "notifications",
+        "order_status_history", "carts", "cart_items",
+        "products", "vendors", "couriers", "categories", "users",
+    ]
+    async with engine.begin() as conn:
+        for table in tables:
+            try:
+                await conn.execute(text(f"TRUNCATE TABLE {table} CASCADE"))
+            except Exception:
+                pass
 
 
 @pytest_asyncio.fixture
@@ -67,6 +157,11 @@ async def db_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     )
     async with maker() as session:
         yield session
+        # Clean up test data after each test
+        try:
+            await session.commit()
+        except Exception:
+            await session.rollback()
 
 
 @pytest_asyncio.fixture

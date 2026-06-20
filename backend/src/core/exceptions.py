@@ -74,3 +74,9 @@ class RateLimitError(AppException):
     status_code = 429
     error_code = "rate_limited"
     message = "Too many requests."
+
+
+class CacheError(AppException):
+    status_code = 503
+    error_code = "cache_error"
+    message = "Cache service unavailable."

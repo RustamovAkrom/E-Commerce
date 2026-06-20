@@ -17,6 +17,7 @@ from src.core.exceptions import (
     NotFoundError,
 )
 from src.core.pagination import Page, PaginationParams
+from src.core.utils import generate_slug
 from src.modules.users.repository import UserRepository
 from src.modules.vendors.models import Vendor, VendorStatus
 from src.modules.vendors.repository import VendorRepository
@@ -38,13 +39,11 @@ class VendorService:
     ) -> Vendor:
         if await self.repo.get_by_user(user_id) is not None:
             raise AlreadyExistsError("You already have a vendor account.")
-        if await self.repo.get_by_slug(data.slug) is not None:
-            raise AlreadyExistsError("This storefront slug is taken.")
         return await self.repo.create(
             {
                 "user_id": user_id,
                 "name": data.name,
-                "slug": data.slug,
+                "slug": generate_slug(data.name, await self.repo.get_all_slugs()),
                 "description": data.description,
                 "contact_email": data.contact_email,
                 "contact_phone": data.contact_phone,
@@ -74,7 +73,12 @@ class VendorService:
         self, user_id: uuid.UUID, data: VendorUpdateRequest
     ) -> Vendor:
         vendor = await self.get_my_vendor(user_id)
-        return await self.repo.update(vendor, data.model_dump(exclude_unset=True))
+        payload = data.model_dump(exclude_unset=True)
+        if "name" in payload:
+            payload["slug"] = generate_slug(
+                payload["name"], await self.repo.get_all_slugs(exclude_id=vendor.id)
+            )
+        return await self.repo.update(vendor, payload)
 
     async def list_public(self, params: PaginationParams) -> Page[Vendor]:
         items, total = await self.repo.list_public(

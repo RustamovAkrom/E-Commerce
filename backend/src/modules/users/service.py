@@ -34,9 +34,13 @@ class UserService:
         existing = await self.repo.get_by_email(data.email)
         if existing is not None:
             raise AlreadyExistsError("A user with this email already exists.")
+        existing_username = await self.repo.get_by_username(data.username)
+        if existing_username is not None:
+            raise AlreadyExistsError("A user with this username already exists.")
         return await self.repo.create(
             {
                 "email": data.email.lower(),
+                "username": data.username.lower(),
                 "hashed_password": hash_password(data.password),
                 "full_name": data.full_name,
                 "phone": data.phone,
@@ -53,10 +57,15 @@ class UserService:
     async def get_by_email(self, email: str) -> User | None:
         return await self.repo.get_by_email(email)
 
-    async def authenticate(self, email: str, password: str) -> User | None:
-        user = await self.repo.get_by_email(email)
+    async def authenticate(self, email_or_username: str, password: str) -> User | None:
+        user = await self.repo.get_by_email(email_or_username)
+
+        if user is None:
+            user = await self.repo.get_by_username(email_or_username)
+
         if user is None or not user.is_active:
             return None
+
         if not verify_password(password, user.hashed_password):
             return None
         return user
@@ -100,9 +109,11 @@ class UserService:
             return user
         # Synthetic, unusable password hash — login is via Telegram only.
         placeholder = hash_password(uuid.uuid4().hex)
+        username = f"tg_{telegram_id}"
         return await self.repo.create(
             {
-                "email": f"tg_{telegram_id}@telegram.local",
+                "email": f"{username}@telegram.local",
+                "username": username,
                 "hashed_password": placeholder,
                 "full_name": full_name,
                 "telegram_id": telegram_id,

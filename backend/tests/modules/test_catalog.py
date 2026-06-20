@@ -13,6 +13,16 @@ CATALOG = "/api/v1/catalog"
 
 
 async def test_list_products(client: AsyncClient, db_session: AsyncSession) -> None:
+    # Clear existing products first (need to clear related tables first due to FK constraints)
+    from sqlalchemy import delete
+    from src.modules.catalog.models import Product, ProductImage, ProductAttribute
+    from src.modules.orders.models import OrderItem
+    await db_session.execute(delete(OrderItem))
+    await db_session.execute(delete(ProductImage))
+    await db_session.execute(delete(ProductAttribute))
+    await db_session.execute(delete(Product))
+    await db_session.commit()
+
     category = await CategoryFactory.create(db_session)
     for _ in range(3):
         await ProductFactory.create(db_session, category=category)
@@ -51,7 +61,6 @@ async def test_create_product(
     payload = {
         "category_id": str(category.id),
         "name": "New Product",
-        "slug": "new-product",
         "price": "199.99",
         "stock": 5,
     }
@@ -61,7 +70,7 @@ async def test_create_product(
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["name"] == "New Product"
-    assert body["slug"] == "new-product"
+    assert body["slug"].startswith("new-product")
     assert Decimal(body["price"]) == Decimal("199.99")
     assert body["stock"] == 5
 
@@ -73,7 +82,6 @@ async def test_create_product_unauthorized(
     payload = {
         "category_id": str(category.id),
         "name": "Forbidden Product",
-        "slug": "forbidden-product",
         "price": "10.00",
     }
     # A CUSTOMER token is authenticated but lacks the ADMIN role -> 403.
