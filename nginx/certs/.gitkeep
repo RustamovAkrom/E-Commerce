@@ -1,0 +1,8 @@
+# SSL certificates go here — DO NOT commit actual certs.
+# Place fullchain.pem and privkey.pem here for production.
+# Use certbot or your cloud provider's certificate manager.
+#
+# Example with certbot (on the host, not in Docker):
+#   certbot certonly --standalone -d yourdomain.com
+#   cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem nginx/certs/
+#   cp /etc/letsencrypt/live/yourdomain.com/privkey.pem   nginx/certs/

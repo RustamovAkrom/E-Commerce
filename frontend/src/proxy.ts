@@ -10,8 +10,15 @@ export function proxy(request: NextRequest) {
     login.searchParams.set("next", pathname);
     return NextResponse.redirect(login);
   }
-  if (pathname.startsWith("/admin") && role !== "admin" && role !== "superadmin") return NextResponse.redirect(new URL("/account", request.url));
+  if (
+    pathname.startsWith("/admin") &&
+    role !== "admin" &&
+    role !== "superadmin"
+  )
+    return NextResponse.redirect(new URL("/account", request.url));
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/account/:path*", "/admin/:path*", "/checkout/:path*"] };
+export const config = {
+  matcher: ["/account/:path*", "/admin/:path*", "/checkout/:path*"],
+};

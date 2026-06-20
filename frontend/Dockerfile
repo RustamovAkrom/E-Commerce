@@ -1,34 +1,54 @@
 # ─── Build stage ────────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 
-# Install pnpm
+# Install pnpm via corepack
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy package files first (layer caching)
-COPY package.json pnpm-lock.yaml ./
+# Copy lockfile and manifest first — layer cache for deps
+COPY package.json pnpm-lock.yaml .npmrc ./
 
-# Install production deps only
-RUN pnpm install --frozen-lockfile --prod
+# Install ALL deps (dev + prod) with BuildKit cache mount for pnpm store.
+# --ignore-scripts: lets sharp and other native packages use pre-built binaries.
+# The cache mount persists the pnpm store between builds (huge speed improvement).
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts
 
 # Copy source
 COPY . .
 
-# Build
+# Build Next.js standalone bundle
 RUN pnpm build
 
-# ─── Production stage ───────────────────────────────────────────────────────
-FROM nginx:alpine
+# ─── Production stage ────────────────────────────────────────────────────────
+FROM node:22-alpine AS runner
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy Next.js static assets
-COPY --from=builder /app/public /usr/share/nginx/html
-COPY --from=builder /app/.next/standalone /app
-COPY --from=builder /app/.next/static /app/.next/static
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser  --system --uid 1001 nextjs
+
+# Copy the standalone server bundle
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+
+# Copy static assets (standalone bundle does not include them)
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy public folder
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+USER nextjs
 
 EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-CMD ["nginx", "-g", "daemon off;"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"
+
+CMD ["node", "server.js"]

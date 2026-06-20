@@ -1,1 +1,54 @@
+# ─── Environment & secrets ─────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Docker volumes / local data ────────────────────────────────────────────
+postgres_data/
+redis_data/
+minio_data/
+rabbitmq_data/
+
+# ─── SSL certificates ────────────────────────────────────────────────────────
+nginx/certs/*.pem
+nginx/certs/*.crt
+nginx/certs/*.key
+
+# ─── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# ─── Node / Next.js ─────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.pnpm-debug.log*
+npm-debug.log*
+
+# ─── IDE ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Project tooling ─────────────────────────────────────────────────────────
 PROJECT_SNAPSHOTs.md

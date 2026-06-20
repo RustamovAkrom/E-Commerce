@@ -1,16 +1,20 @@
-# ─── Development environment ────────────────────────────────────────────────
-# Usage: make dev  (or: docker-compose -f docker-compose.dev.yml up)
+# ─── Development environment ─────────────────────────────────────────────────
+# Usage: make dev   (or: docker-compose -f docker-compose.dev.yml up)
+#
+# Uses HARDCODED dev-only credentials — safe because:
+#   • nothing is exposed to the internet
+#   • no real data, no real secrets
+#
+# Do NOT copy any credentials from here to production.
 #
 # Services:
-#   postgres    — PostgreSQL 16
-#   redis       — Redis 7
-#   minio       — S3-compatible storage (console: http://localhost:9001)
-#   backend     — FastAPI (hot-reload, debug port 5678)
-#   frontend    — Next.js dev server (http://localhost:3000)
-#   bot         — Telegram bot (aiogram3)
-#
-# Volumes:
-#   postgres_data — survives container restarts
+#   postgres   — PostgreSQL 16          localhost:5432
+#   redis      — Redis 7 (no auth)      localhost:6379
+#   rabbitmq   — RabbitMQ 3             localhost:5672 / management: 15672
+#   minio      — S3 storage             localhost:9000 / console: 9001
+#   backend    — FastAPI hot-reload      localhost:8000
+#   frontend   — Next.js dev             localhost:3000
+#   bot        — Telegram bot (polling)
 
 services:
   # ─── PostgreSQL ───────────────────────────────────────────────────────
@@ -23,7 +27,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_dev_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -36,14 +40,29 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - redis_dev_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # ─── MinIO (S3-compatible storage) ────────────────────────────────────
+  # ─── RabbitMQ ─────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+
+  # ─── MinIO ────────────────────────────────────────────────────────────
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -54,21 +73,20 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio_data:/data
+      - minio_dev_data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ─── Backend (FastAPI) ────────────────────────────────────────────────
+  # ─── Backend (FastAPI hot-reload) ─────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-      - "5678:5678"            # debug / pdb
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/ecommerce
       REDIS_URL: redis://redis:6379/0
@@ -81,11 +99,14 @@ services:
       MINIO_SECURE: "false"
       SECRET_KEY: dev-secret-key-change-in-production-min-32-chars!
       DEBUG: "true"
-      ALLOWED_HOSTS: "*"
+      ALLOWED_HOSTS: '["*"]'
       CORS_ORIGINS: '["http://localhost:3000"]'
       TELEGRAM_BOT_ENABLED: "true"
+      BOT_TOKEN: ""
+      TELEGRAM_AUTH_SECRET: ""
     volumes:
       - ./backend/src:/app/src
+      - ./backend/alembic:/app/alembic
     depends_on:
       postgres:
         condition: service_healthy
@@ -93,13 +114,15 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ─── Frontend (Next.js) ───────────────────────────────────────────────
+  # ─── Frontend (Next.js dev) ───────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
@@ -119,20 +142,23 @@ services:
     depends_on:
       - backend
 
-  # ─── Bot ──────────────────────────────────────────────────────────────
+  # ─── Bot (polling mode) ───────────────────────────────────────────────
   bot:
     build:
       context: ./bot
       dockerfile: Dockerfile
     environment:
       BACKEND_API_URL: http://backend:8000
-      BOT_TOKEN: ""
+      REDIS_URL: redis://redis:6379/2
+      BOT_ENV: dev
+      BOT_TOKEN: ""           # set in shell: BOT_TOKEN=xxx make dev
       TELEGRAM_AUTH_SECRET: ""
     depends_on:
       - backend
+      - redis
 
 volumes:
-  postgres_data:
-  redis_data:
-  minio_data:
+  postgres_dev_data:
+  redis_dev_data:
+  minio_dev_data:
   frontend_node_modules:

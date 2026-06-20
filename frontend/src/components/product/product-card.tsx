@@ -18,7 +18,10 @@ export function ProductCard({ product }: { product: Product }) {
   };
   return (
     <Card className="group overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
-      <Link href={`/products/${product.slug}`} className="relative block aspect-square overflow-hidden bg-muted">
+      <Link
+        href={`/products/${product.slug}`}
+        className="relative block aspect-square overflow-hidden bg-muted"
+      >
         <Image
           src="/product-fallback.svg"
           alt={product.name}
@@ -32,9 +35,14 @@ export function ProductCard({ product }: { product: Product }) {
           <Badge variant={product.stock > 0 ? "success" : "destructive"}>
             {product.stock > 0 ? "Sotuvda" : "Tugagan"}
           </Badge>
-          <span className="text-xs text-muted-foreground">{product.sku ?? "SKU yo\u0027q"}</span>
+          <span className="text-xs text-muted-foreground">
+            {product.sku ?? "SKU yo\u0027q"}
+          </span>
         </div>
-        <Link href={`/products/${product.slug}`} className="line-clamp-2 min-h-12 font-semibold hover:text-primary">
+        <Link
+          href={`/products/${product.slug}`}
+          className="line-clamp-2 min-h-12 font-semibold hover:text-primary"
+        >
           {product.name}
         </Link>
         <div className="flex items-center justify-between gap-2">
