@@ -6,6 +6,7 @@ default; additional carriers register here.
 
 from __future__ import annotations
 
+from src.core.exceptions import ValidationError
 from src.modules.shipping.providers.base import (
     BaseShippingProvider,
     RateQuote,
@@ -21,7 +22,13 @@ DEFAULT_CARRIER = LocalCourierProvider.name
 
 
 def get_carrier(name: str | None = None) -> BaseShippingProvider:
-    return _REGISTRY[name or DEFAULT_CARRIER]
+    carrier = _REGISTRY.get(name or DEFAULT_CARRIER)
+    if carrier is None:
+        raise ValidationError(
+            f"Unknown carrier: {name!r}.",
+            details={"available": sorted(_REGISTRY)},
+        )
+    return carrier
 
 
 __all__ = [

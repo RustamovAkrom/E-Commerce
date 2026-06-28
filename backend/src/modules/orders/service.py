@@ -61,7 +61,7 @@ class OrderService:
         await self.session.flush()  # assigns order.id
 
         total = Decimal("0")
-        currency = "UZS"
+        currency: str | None = None
         for product_id, quantity in cart_items.items():
             product = await self.products.get(product_id)
             if product is None or not product.is_active:
@@ -69,13 +69,24 @@ class OrderService:
                     "A product in your cart is no longer available.",
                     details={"product_id": str(product_id)},
                 )
+            # An order must be settled in a single currency; the cart guards
+            # this too, but the order is the source of truth for money.
+            if currency is None:
+                currency = product.currency
+            elif product.currency != currency:
+                raise ValidationError(
+                    "Cart contains products with different currencies.",
+                    details={
+                        "expected_currency": currency,
+                        "product_currency": product.currency,
+                    },
+                )
             # Atomic, race-safe reservation; raises ConflictError if short.
             await self.inventory.reserve(
                 product_id, quantity, reference=f"order:{order.id}"
             )
             line_total = product.price * quantity
             total += line_total
-            currency = product.currency
             self.session.add(
                 OrderItem(
                     order_id=order.id,
@@ -87,7 +98,7 @@ class OrderService:
             )
 
         order.total_amount = total
-        order.currency = currency
+        order.currency = currency or "UZS"
         await self.session.flush()
 
         # Cart is consumed once the order is staged.
@@ -163,6 +174,17 @@ class OrderService:
         self.session.add(order)
         await self.session.flush()
         return order
+
+    async def mark_refunded(self, order_id: uuid.UUID) -> Order:
+        """Called by the payments module when a payment is refunded.
+
+        Releases the reserved stock back to inventory. Idempotent: a repeat
+        call once the order is already refunded is a no-op.
+        """
+        order = await self.get(order_id)
+        if order.status == OrderStatus.REFUNDED:
+            return order
+        return await self.transition(order_id, OrderStatus.REFUNDED)
 
     async def _release_stock(self, order: Order) -> None:
         for item in order.items:

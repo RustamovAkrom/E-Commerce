@@ -249,7 +249,6 @@ async def test_logout_without_access_token(client: AsyncClient) -> None:
 # ─── Telegram Auth ─────────────────────────────────────────────────────────
 
 async def test_telegram_auth_success(client: AsyncClient, monkeypatch: object) -> None:
-    import hmac
 
     monkeypatch.setattr(settings, "TELEGRAM_AUTH_SECRET", "test-secret")
     monkeypatch.setattr(settings, "BOT_TOKEN", "123:ABC")

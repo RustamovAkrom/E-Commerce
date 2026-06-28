@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface StarRatingInputProps {
   rating: number;
-  onRatingChange: (rating: number) => void;
+  onRatingChange?: (rating: number) => void;
   readonly?: boolean;
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -47,7 +47,7 @@ export function StarRatingInput({
         <button
           key={star}
           type="button"
-          onClick={() => onRatingChange(star)}
+          onClick={() => onRatingChange?.(star)}
           className="transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
           aria-label={`Rate ${star} stars`}
         >

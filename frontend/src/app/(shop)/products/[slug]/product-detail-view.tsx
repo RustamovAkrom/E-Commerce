@@ -47,6 +47,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
   if (!query.data) return <EmptyState title="Mahsulot topilmadi" />;
   const product = query.data;
   return (
+    <>
     <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-2 animate-fade-in">
       <ProductImages images={product.images} name={product.name} />
       <div className="space-y-5">
@@ -126,5 +127,6 @@ export function ProductDetailView({ slug }: { slug: string }) {
         ratingSummaryQuery.refetch();
       }}
     />
+    </>
   );
 }

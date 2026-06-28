@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from urllib.parse import quote
 
 # Override system DEBUG=release (VS Code sets this) — tests need a boolean

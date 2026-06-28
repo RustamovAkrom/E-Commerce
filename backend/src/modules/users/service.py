@@ -19,6 +19,7 @@ from src.modules.users.repository import UserRepository
 from src.modules.users.schemas import (
     UserAdminUpdateRequest,
     UserCreateRequest,
+    UserStatusUpdateRequest,
     UserUpdateRequest,
 )
 
@@ -85,7 +86,9 @@ class UserService:
         )
 
     async def admin_update(
-        self, user_id: uuid.UUID, data: UserAdminUpdateRequest
+        self,
+        user_id: uuid.UUID,
+        data: UserAdminUpdateRequest | UserStatusUpdateRequest,
     ) -> User:
         user = await self.get(user_id)
         return await self.repo.update(user, data.model_dump(exclude_unset=True))

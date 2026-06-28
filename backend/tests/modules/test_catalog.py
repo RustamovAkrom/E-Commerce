@@ -15,7 +15,7 @@ CATALOG = "/api/v1/catalog"
 async def test_list_products(client: AsyncClient, db_session: AsyncSession) -> None:
     # Clear existing products first (need to clear related tables first due to FK constraints)
     from sqlalchemy import delete
-    from src.modules.catalog.models import Product, ProductImage, ProductAttribute
+    from src.modules.catalog.models import Product, ProductAttribute, ProductImage
     from src.modules.orders.models import OrderItem
     await db_session.execute(delete(OrderItem))
     await db_session.execute(delete(ProductImage))

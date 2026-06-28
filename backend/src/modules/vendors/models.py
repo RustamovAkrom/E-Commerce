@@ -15,7 +15,7 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import Boolean, Enum, ForeignKey, Numeric, String, Text, event, select
-from sqlalchemy.orm import Mapped, mapped_column, validates, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from src.core.database import (
     Base,
@@ -23,8 +23,8 @@ from src.core.database import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
 )
-from src.modules.users.models import User
 from src.core.utils import generate_slug
+from src.modules.users.models import User
 
 
 class VendorStatus(StrEnum):
@@ -64,7 +64,7 @@ class Vendor(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
         Numeric(5, 2), default=Decimal("0"), nullable=False
     )
 
-    user: Mapped["User"] = relationship("User", back_populates="vendor")
+    user: Mapped[User] = relationship("User", back_populates="vendor")
 
     @validates("name")
     def _generate_slug_from_name(self, key: str, name: str) -> str:  # noqa: ARG002

@@ -228,6 +228,7 @@ def cmd_shell(extra: list[str]) -> int:
 def cmd_setup_test_db(extra: list[str]) -> int:
     """Create the test database (ecommerce_test) if it doesn't exist."""
     import asyncio
+
     import asyncpg
 
     default_db_url = "postgresql://postgres:postgres@localhost:5432/postgres"

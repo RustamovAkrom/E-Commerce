@@ -7,6 +7,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.core.enums import UserRole
 from src.core.security import hash_password
 from src.modules.users.models import User
 
@@ -60,10 +61,11 @@ async def create_superadmin(session: AsyncSession) -> None:
         return
 
     user = User(
-        email=settings.ADMIN_EMAIL,
+        email=settings.ADMIN_EMAIL.lower(),
+        username=settings.ADMIN_EMAIL.split("@", 1)[0].lower(),
         hashed_password=hash_password(settings.ADMIN_PASSWORD),
         full_name=settings.ADMIN_FULL_NAME,
-        role="SUPERADMIN",
+        role=UserRole.SUPERADMIN,
         is_active=True,
         is_verified=True,
     )

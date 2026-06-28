@@ -19,10 +19,7 @@ from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from src.core.database import async_session_maker
 from sqladmin import Admin
-from src.core.database import async_session_maker
-from src.core.startup import create_superadmin
 
 # Importing the registry guarantees every ORM model is registered on
 # Base.metadata before the app (and Alembic) touch the database.
@@ -41,11 +38,12 @@ from src.admin.sqladmin_setup import (
     VendorAdmin,
 )
 from src.config import settings
-from src.core.database import engine
+from src.core.database import async_session_maker
 from src.core.exceptions import AppException
 from src.core.middleware import register_middleware
 from src.core.rate_limit import limiter
 from src.core.redis import close_redis
+from src.core.startup import create_superadmin
 from src.modules.auth.router import router as auth_router
 from src.modules.cart.router import router as cart_router
 from src.modules.catalog.router import router as catalog_router

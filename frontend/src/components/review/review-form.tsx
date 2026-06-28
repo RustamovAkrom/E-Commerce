@@ -42,10 +42,10 @@ export function ReviewForm({
 
   const form = useForm<ReviewFormData>({
     resolver: zodResolver(reviewSchema),
-    defaultValues: existingReview ?? {
-      rating: 0,
-      title: "",
-      comment: "",
+    defaultValues: {
+      rating: existingReview?.rating ?? 0,
+      title: existingReview?.title ?? "",
+      comment: existingReview?.comment ?? "",
     },
   });
 

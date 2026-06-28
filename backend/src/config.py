@@ -7,7 +7,6 @@ Everything in the platform depends on this module. Import the singleton
 from __future__ import annotations
 
 from functools import lru_cache
-
 from urllib.parse import quote
 
 from pydantic import Field, field_validator

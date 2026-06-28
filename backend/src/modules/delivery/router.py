@@ -34,10 +34,11 @@ async def list_couriers(
     db: DbSession,
     params: Annotated[PaginationParams, Depends()],
 ) -> Page[CourierResponse]:
-    page = await DeliveryService(db).list_all(
+    items, total = await DeliveryService(db).list_all(
         offset=params.offset, limit=params.limit
     )
-    return page.map(CourierResponse.model_validate)
+    page = Page.create([CourierResponse.model_validate(c) for c in items], total, params)
+    return page
 
 
 @router.post(

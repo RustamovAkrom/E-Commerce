@@ -1,7 +1,9 @@
 """User ORM model."""
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 from sqlalchemy import BigInteger, Boolean, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +14,7 @@ from src.core.database import (
     UUIDPrimaryKeyMixin,
 )
 from src.core.enums import UserRole
+
 if TYPE_CHECKING:
     from src.modules.vendors.models import Vendor
 
@@ -40,7 +43,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    vendor: Mapped["Vendor | None"] = relationship("Vendor", back_populates="user", uselist=False)
+    vendor: Mapped[Vendor | None] = relationship("Vendor", back_populates="user", uselist=False)
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<User {self.email} ({self.role})>"

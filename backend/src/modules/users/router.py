@@ -20,6 +20,7 @@ from src.modules.users.schemas import (
     PasswordChangeRequest,
     UserAdminUpdateRequest,
     UserResponse,
+    UserStatusUpdateRequest,
     UserUpdateRequest,
 )
 from src.modules.users.service import UserService
@@ -91,9 +92,10 @@ async def get_user(user_id: uuid.UUID, db: DbSession) -> UserResponse:
 )
 async def admin_update_user(
     user_id: uuid.UUID,
-    data: UserAdminUpdateRequest,
+    data: UserStatusUpdateRequest,
     db: DbSession,
 ) -> UserResponse:
+    """ADMIN+ can update activation/verification — but NOT role."""
     user = await UserService(db).admin_update(user_id, data)
     return UserResponse.model_validate(user)
 
@@ -120,7 +122,7 @@ async def update_user_role(
 )
 async def toggle_user_status(
     user_id: uuid.UUID,
-    data: UserAdminUpdateRequest,
+    data: UserStatusUpdateRequest,
     db: DbSession,
 ) -> UserResponse:
     """ADMIN+ can activate/deactivate users."""

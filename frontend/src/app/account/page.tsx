@@ -128,7 +128,7 @@ export default function AccountPage() {
               <p className="text-sm text-muted-foreground">{profile.phone}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Ro'yxatdan o'tgan: {new Date(profile.created_at).toLocaleDateString("uz-UZ")}
+              Ro&apos;yxatdan o&apos;tgan: {new Date(profile.created_at).toLocaleDateString("uz-UZ")}
             </p>
           </div>
           <Button variant="outline" onClick={() => logout()} className="gap-2">
@@ -179,7 +179,7 @@ export default function AccountPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="size-5" />
-            Profil ma'lumotlari
+            Profil ma&apos;lumotlari
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -193,7 +193,7 @@ export default function AccountPage() {
               <Input value={profile.email} disabled />
             </label>
             <label className="block text-sm font-medium">
-              To'liq ism
+              To&apos;liq ism
               <Input {...form.register("full_name")} />
             </label>
             <label className="block text-sm font-medium">
@@ -218,7 +218,7 @@ export default function AccountPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="size-5" />
-            Parolni o'zgartirish
+            Parolni o&apos;zgartirish
           </CardTitle>
         </CardHeader>
         <CardContent>

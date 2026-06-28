@@ -60,6 +60,22 @@ class ProductRepository(BaseRepository[Product]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_many_by_ids(
+        self, product_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, Product]:
+        """Batch-fetch non-deleted products by id, keyed by id.
+
+        Lets callers (e.g. the cart) resolve many products in a single query
+        instead of issuing one ``get`` per id (N+1).
+        """
+        if not product_ids:
+            return {}
+        stmt = select(Product).where(
+            Product.id.in_(product_ids), Product.is_deleted.is_(False)
+        )
+        result = await self.session.execute(stmt)
+        return {product.id: product for product in result.scalars().all()}
+
     async def search(
         self,
         filters: ProductFilters,

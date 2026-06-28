@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, MessageSquare } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/empty-state";
 import { ErrorMessage } from "@/components/common/error-message";
@@ -34,31 +34,15 @@ export function ReviewList({
   const pageSize = 5;
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["product-reviews", productId, page, sort],
+    queryKey: ["product-reviews", productId, page],
     queryFn: () =>
       reviewsApi.listProductReviews(productId, {
         page,
         size: pageSize,
-        sort: getSortParam(sort),
       }),
   });
 
   const sortedReviews = sortReviews(data?.items ?? [], sort);
-
-  function getSortParam(sort: ReviewSort): string {
-    switch (sort) {
-      case "newest":
-        return "-created_at";
-      case "oldest":
-        return "created_at";
-      case "highest":
-        return "-rating";
-      case "lowest":
-        return "rating";
-      default:
-        return "-created_at";
-    }
-  }
 
   function sortReviews(reviews: Review[], sort: ReviewSort): Review[] {
     const sorted = [...reviews];
@@ -93,7 +77,6 @@ export function ReviewList({
       <EmptyState
         title="Hali sharhlar yo'q"
         description="Bu mahsulotga birinchi sharhni siz qoldiring!"
-        icon={MessageSquare}
       />
     );
   }
@@ -143,11 +126,7 @@ export function ReviewList({
 
       {/* Pagination */}
       {data.pages > 1 && (
-        <Pagination
-          currentPage={page}
-          totalPages={data.pages}
-          onPageChange={setPage}
-        />
+        <Pagination page={page} pages={data.pages} onChange={setPage} />
       )}
     </div>
   );

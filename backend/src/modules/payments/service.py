@@ -106,6 +106,21 @@ class PaymentService:
         if payment.status in _FINAL_PAYMENT_STATUSES:
             return payment
 
+        # Guard against amount tampering / underpayment: a callback claiming
+        # success must report the exact amount we asked the provider to charge.
+        if (
+            result.status == PaymentStatus.PAID
+            and result.amount is not None
+            and result.amount != payment.amount
+        ):
+            raise PaymentError(
+                "Callback amount does not match the payment amount.",
+                details={
+                    "expected": str(payment.amount),
+                    "received": str(result.amount),
+                },
+            )
+
         payment.provider_payment_id = result.provider_payment_id
         payment.status = result.status
         payment.raw_payload = result.raw or payment.raw_payload
@@ -114,6 +129,8 @@ class PaymentService:
 
         if result.status == PaymentStatus.PAID:
             await self.order_service.mark_paid(payment.order_id)
+        elif result.status == PaymentStatus.REFUNDED:
+            await self.order_service.mark_refunded(payment.order_id)
 
         return payment
 

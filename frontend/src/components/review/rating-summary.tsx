@@ -44,7 +44,7 @@ export function RatingSummary({
     return (
       <div className={cn("flex items-center gap-2 text-muted-foreground", className)}>
         <Star className={cn(iconSize[size], "fill-transparent")} />
-        <span className={cn(sizeClasses[size])}>Hali sharh yo'q</span>
+        <span className={cn(sizeClasses[size])}>Hali sharh yo&apos;q</span>
       </div>
     );
   }

@@ -51,27 +51,27 @@ class CartService:
         if product is None or not product.is_active:
             raise NotFoundError("Product not found or unavailable.")
 
-        # Check currency consistency with existing cart items
+        # Check currency consistency with existing cart items (single query).
         raw = await self.get_raw(user_id)
-        if raw:
-            for existing_product_id in raw.keys():
-                if existing_product_id != product_id:
-                    existing_product = await self.products.get(existing_product_id)
-                    if existing_product and existing_product.currency != product.currency:
-                        raise ConflictError(
-                            "Cannot add product with different currency to cart.",
-                            details={
-                                "existing_currency": existing_product.currency,
-                                "new_currency": product.currency,
-                            },
-                        )
+        other_ids = [pid for pid in raw if pid != product_id]
+        if other_ids:
+            existing_products = await self.products.get_many_by_ids(other_ids)
+            for existing_product in existing_products.values():
+                if existing_product.currency != product.currency:
+                    raise ConflictError(
+                        "Cannot add product with different currency to cart.",
+                        details={
+                            "existing_currency": existing_product.currency,
+                            "new_currency": product.currency,
+                        },
+                    )
 
         key = self._key(user_id)
         try:
             current_str = await self.redis.hget(key, str(product_id))
         except redis.RedisError as e:
             await self._handle_redis_error(f"get cart item for user {user_id}: {e}")
-        
+
         current = int(cast(str | bytes | None, current_str) or 0)
         new_qty = current + quantity
         if new_qty > product.stock:
@@ -79,12 +79,12 @@ class CartService:
                 "Requested quantity exceeds available stock.",
                 details={"available": product.stock},
             )
-        
+
         try:
             await self.redis.hset(key, str(product_id), new_qty)
         except redis.RedisError as e:
             await self._handle_redis_error(f"set cart item for user {user_id}: {e}")
-        
+
         await self._touch_ttl(user_id)
         return await self.get_cart(user_id)
 
@@ -94,23 +94,23 @@ class CartService:
         product = await self.products.get(product_id)
         if product is None or not product.is_active:
             raise NotFoundError("Product not found or unavailable.")
-        
-        # Check currency consistency with existing cart items (only if adding/updating)
+
+        # Check currency consistency with existing cart items (single query).
         if quantity > 0:
             raw = await self.get_raw(user_id)
-            if raw:
-                for existing_product_id in raw.keys():
-                    if existing_product_id != product_id:
-                        existing_product = await self.products.get(existing_product_id)
-                        if existing_product and existing_product.currency != product.currency:
-                            raise ConflictError(
-                                "Cannot set product with different currency to cart.",
-                                details={
-                                    "existing_currency": existing_product.currency,
-                                    "new_currency": product.currency,
-                                },
-                            )
-        
+            other_ids = [pid for pid in raw if pid != product_id]
+            if other_ids:
+                existing_products = await self.products.get_many_by_ids(other_ids)
+                for existing_product in existing_products.values():
+                    if existing_product.currency != product.currency:
+                        raise ConflictError(
+                            "Cannot set product with different currency to cart.",
+                            details={
+                                "existing_currency": existing_product.currency,
+                                "new_currency": product.currency,
+                            },
+                        )
+
         if quantity > product.stock:
             raise ConflictError(
                 "Requested quantity exceeds available stock.",
@@ -124,7 +124,7 @@ class CartService:
                 await self.redis.hset(key, str(product_id), quantity)
         except redis.RedisError as e:
             await self._handle_redis_error(f"set cart item for user {user_id}: {e}")
-        
+
         await self._touch_ttl(user_id)
         return await self.get_cart(user_id)
 
@@ -149,7 +149,7 @@ class CartService:
             raw: dict[str | bytes, str | bytes] = await self.redis.hgetall(self._key(user_id))
         except redis.RedisError as e:
             await self._handle_redis_error(f"get cart for user {user_id}: {e}")
-        
+
         return {
             uuid.UUID(str(pid)): int(qty)
             for pid, qty in raw.items()
@@ -165,9 +165,12 @@ class CartService:
         items: list[CartItemResponse] = []
         subtotal = Decimal("0")
         currency: str | None = None
-        
+
+        # Resolve every product in one query instead of one per cart line.
+        products = await self.products.get_many_by_ids(list(raw.keys()))
+
         for product_id, quantity in raw.items():
-            product: Product | None = await self.products.get(product_id)
+            product: Product | None = products.get(product_id)
             if product is None or not product.is_active:
                 # Stale entry — drop it silently.
                 try:
@@ -176,7 +179,7 @@ class CartService:
                     # Ignore errors when cleaning up stale entries
                     pass
                 continue
-            
+
             # Validate currency consistency
             if currency is None:
                 currency = product.currency
@@ -189,7 +192,7 @@ class CartService:
                         "product_name": product.name,
                     },
                 )
-            
+
             line_total = product.price * quantity
             subtotal += line_total
             items.append(
@@ -204,13 +207,13 @@ class CartService:
                     available_stock=product.stock,
                 )
             )
-        
+
         # If all products were stale/inactive
         if not items:
             return CartResponse(
                 items=[], total_items=0, subtotal=Decimal("0"), currency="UZS"
             )
-        
+
         return CartResponse(
             items=items,
             total_items=sum(i.quantity for i in items),

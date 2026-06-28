@@ -30,6 +30,17 @@ class UserAdminUpdateRequest(StrictSchema):
     is_verified: bool | None = None
 
 
+class UserStatusUpdateRequest(StrictSchema):
+    """Admin-level update that cannot touch ``role`` (privilege boundary).
+
+    Only SUPERADMIN may change roles, via the dedicated ``/role`` endpoint that
+    accepts :class:`UserAdminUpdateRequest`.
+    """
+
+    is_active: bool | None = None
+    is_verified: bool | None = None
+
+
 class PasswordChangeRequest(StrictSchema):
     current_password: str = Field(min_length=8, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)

@@ -42,7 +42,8 @@ _TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
 CUSTOMER_CANCELLABLE = {OrderStatus.PENDING, OrderStatus.CONFIRMED}
 
 # Terminal statuses that release reserved stock back to inventory.
-STOCK_RELEASING = {OrderStatus.CANCELLED}
+# Both are terminal and mutually exclusive, so stock is released at most once.
+STOCK_RELEASING = {OrderStatus.CANCELLED, OrderStatus.REFUNDED}
 
 
 def can_transition(current: OrderStatus, target: OrderStatus) -> bool:

@@ -6,12 +6,20 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.exceptions import ConflictError, NotFoundError, PermissionDeniedError
 from src.modules.delivery.models import Courier, DeliveryAssignment, DeliveryStatus
 from src.modules.delivery.repository import (
     CourierRepository,
     DeliveryAssignmentRepository,
 )
 from src.modules.delivery.schemas import CourierCreateRequest
+
+# Delivery statuses from which no further transition is allowed.
+_TERMINAL_DELIVERY_STATUSES = {
+    DeliveryStatus.DELIVERED,
+    DeliveryStatus.FAILED,
+    DeliveryStatus.CANCELLED,
+}
 
 
 class DeliveryService:
@@ -73,11 +81,24 @@ class DeliveryService:
         await self.session.flush()
         return courier
 
+    async def _get_owned_assignment(
+        self, courier_id: uuid.UUID, assignment_id: uuid.UUID
+    ) -> DeliveryAssignment:
+        assignment = await self.assignments.get(assignment_id)
+        if assignment is None:
+            raise NotFoundError("Assignment not found.")
+        if assignment.courier_id != courier_id:
+            raise PermissionDeniedError("This delivery is not assigned to you.")
+        return assignment
+
     async def pickup(self, courier_id: uuid.UUID, assignment_id: uuid.UUID) -> DeliveryAssignment:
         """Mark a delivery as picked up by a courier."""
-        assignment = await self.assignments.get(assignment_id)
-        if assignment is None or assignment.courier_id != courier_id:
-            raise ValueError("Assignment not found or not yours.")
+        assignment = await self._get_owned_assignment(courier_id, assignment_id)
+        if assignment.status != DeliveryStatus.PENDING:
+            raise ConflictError(
+                "Only a pending delivery can be picked up.",
+                details={"status": assignment.status.value},
+            )
         assignment.status = DeliveryStatus.PICKED_UP
         await self.session.flush()
         return assignment
@@ -86,9 +107,17 @@ class DeliveryService:
         self, courier_id: uuid.UUID, assignment_id: uuid.UUID
     ) -> DeliveryAssignment:
         """Mark a delivery as successfully delivered."""
-        assignment = await self.assignments.get(assignment_id)
-        if assignment is None or assignment.courier_id != courier_id:
-            raise ValueError("Assignment not found or not yours.")
+        assignment = await self._get_owned_assignment(courier_id, assignment_id)
+        if assignment.status in _TERMINAL_DELIVERY_STATUSES:
+            raise ConflictError(
+                "Delivery is in a final state and cannot change.",
+                details={"status": assignment.status.value},
+            )
+        if assignment.status == DeliveryStatus.PENDING:
+            raise ConflictError(
+                "Delivery must be picked up before it can be marked delivered.",
+                details={"status": assignment.status.value},
+            )
         assignment.status = DeliveryStatus.DELIVERED
         await self.session.flush()
         return assignment
