@@ -114,3 +114,29 @@ class ProductRepository(BaseRepository[Product]):
 
 class ProductImageRepository(BaseRepository[ProductImage]):
     model = ProductImage
+
+    async def get_for_product(
+        self, image_id: uuid.UUID, product_id: uuid.UUID
+    ) -> ProductImage | None:
+        stmt = select(ProductImage).where(
+            ProductImage.id == image_id,
+            ProductImage.product_id == product_id,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_for_product(self, product_id: uuid.UUID) -> list[ProductImage]:
+        stmt = (
+            select(ProductImage)
+            .where(ProductImage.product_id == product_id)
+            .order_by(ProductImage.sort_order, ProductImage.created_at)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def unset_primary_for_product(self, product_id: uuid.UUID) -> None:
+        images = await self.list_for_product(product_id)
+        for image in images:
+            image.is_primary = False
+            self.session.add(image)
+        await self.session.flush()

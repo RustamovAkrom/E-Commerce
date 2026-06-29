@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
+from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import NotFoundError, ValidationError
 from src.core.pagination import Page, PaginationParams
+from src.core.storage import delete_file, object_name_from_url, public_url, upload_file
 from src.core.utils import generate_slug
 from src.modules.catalog.filters import ProductFilters
-from src.modules.catalog.models import Category, Product
+from src.modules.catalog.models import Category, Product, ProductImage
 from src.modules.catalog.repository import (
     CategoryRepository,
     ProductImageRepository,
@@ -126,3 +129,63 @@ class ProductService:
         if product is None:
             raise NotFoundError("Product not found.")
         await self.repo.delete(product)
+
+    async def upload_image(
+        self,
+        product_id: uuid.UUID,
+        file: UploadFile,
+        *,
+        is_primary: bool = False,
+        sort_order: int = 0,
+    ) -> ProductImage:
+        await self.get(product_id)
+
+        content = await file.read()
+        if not content:
+            raise ValidationError("Uploaded file is empty.")
+
+        content_type = file.content_type or "application/octet-stream"
+        object_name = await asyncio.to_thread(
+            upload_file,
+            content,
+            file.filename or "product-image",
+            content_type,
+        )
+        existing_images = await self.images.list_for_product(product_id)
+        should_be_primary = is_primary or not existing_images
+        if should_be_primary:
+            await self.images.unset_primary_for_product(product_id)
+        return await self.images.create(
+            {
+                "product_id": product_id,
+                "url": public_url(object_name),
+                "is_primary": should_be_primary,
+                "sort_order": sort_order,
+            }
+        )
+
+    async def set_primary_image(
+        self, product_id: uuid.UUID, image_id: uuid.UUID
+    ) -> ProductImage:
+        await self.get(product_id)
+        image = await self.images.get_for_product(image_id, product_id)
+        if image is None:
+            raise NotFoundError("Product image not found.")
+        await self.images.unset_primary_for_product(product_id)
+        return await self.images.update(image, {"is_primary": True})
+
+    async def delete_image(self, product_id: uuid.UUID, image_id: uuid.UUID) -> None:
+        await self.get(product_id)
+        image = await self.images.get_for_product(image_id, product_id)
+        if image is None:
+            raise NotFoundError("Product image not found.")
+
+        was_primary = image.is_primary
+        object_name = object_name_from_url(image.url)
+        await asyncio.to_thread(delete_file, object_name)
+        await self.images.delete(image, hard=True)
+
+        if was_primary:
+            remaining = await self.images.list_for_product(product_id)
+            if remaining:
+                await self.images.update(remaining[0], {"is_primary": True})

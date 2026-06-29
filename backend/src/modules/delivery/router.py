@@ -15,6 +15,7 @@ from src.core.dependencies import (
 from src.core.pagination import Page, PaginationParams
 from src.modules.delivery.schemas import (
     CourierCreateRequest,
+    CourierDeliveryResponse,
     CourierResponse,
     CourierUpdateRequest,
     DeliveryAssignmentResponse,
@@ -76,32 +77,39 @@ async def update_courier(
 # --- Courier: own deliveries ------------------------------------------------
 @router.get(
     "/courier/my-deliveries",
-    response_model=list[DeliveryAssignmentResponse],
+    response_model=list[CourierDeliveryResponse],
 )
 async def my_deliveries(
     db: DbSession,
     user: CurrentUser,  # type: ignore[valid-type]
-) -> list[DeliveryAssignmentResponse]:
-    """COURIER role: see pending deliveries assigned to them."""
-    from src.modules.delivery.models import DeliveryStatus
-
+) -> list[CourierDeliveryResponse]:
+    """COURIER role: active deliveries enriched with the destination address,
+    customer contact and order amount for in-field navigation."""
     service = DeliveryService(db)
     courier = await service.get_by_user_id(user.id)  # type: ignore[attr-defined]
     if courier is None:
         return []
-    assignments = await service.get_pending_for_courier(courier.id)
-    return [
-        DeliveryAssignmentResponse(
-            id=a.id,
-            order_id=a.order_id,
-            courier_id=a.courier_id,
-            courier_name=None,
-            status=a.status.value,
-            created_at=a.created_at,
+    assignments = await service.list_active_for_courier(courier.id)
+    deliveries: list[CourierDeliveryResponse] = []
+    for a in assignments:
+        addr = a.order.shipping_address or {}
+        deliveries.append(
+            CourierDeliveryResponse(
+                id=a.id,
+                order_id=a.order_id,
+                status=a.status.value,
+                created_at=a.created_at,
+                customer_name=str(addr.get("full_name", "—")),
+                phone=addr.get("phone"),
+                address=str(addr.get("address", "")),
+                city=str(addr.get("city", "")),
+                country=str(addr.get("country", "")),
+                postal_code=addr.get("postal_code"),
+                total_amount=a.order.total_amount,
+                currency=a.order.currency,
+            )
         )
-        for a in assignments
-        if a.status != DeliveryStatus.DELIVERED
-    ]
+    return deliveries
 
 
 @router.post(

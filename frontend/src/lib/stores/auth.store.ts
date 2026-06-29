@@ -44,7 +44,7 @@ function message(error: unknown): string {
   return "Kutilmagan xatolik yuz berdi. Qayta urinib ko'ring.";
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   accessToken: null,
   refreshToken: null,
@@ -92,26 +92,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   refresh: async () => {
-    const currentRefresh = get().refreshToken;
-    if (!currentRefresh) {
-      set({
-        user: null,
-        accessToken: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-        initialized: true,
-      });
-      return false;
-    }
+    // The refresh token lives in an httpOnly cookie (set by the Next.js
+    // /api/auth/* routes), NOT in this in-memory store. On a page reload the
+    // store resets, so we must rebuild the session from the cookie:
+    //   1) exchange the cookie for a fresh access token
+    //   2) re-fetch the current user (lost on reload) so role-based UI works
     set({ isLoading: true });
     try {
-      const tokens = await authApi.refreshToken(currentRefresh);
+      const tokens = await authApi.refresh();
+      // Set the access token first so the /users/me call below is authed.
+      set({ accessToken: tokens.access_token, isAuthenticated: true });
+      const user = await authApi.me();
       set({
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
+        user,
         isAuthenticated: true,
         isLoading: false,
+        initialized: true,
       });
       return true;
     } catch {

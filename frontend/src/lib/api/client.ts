@@ -1,6 +1,6 @@
 import { apiV1 } from "@/lib/config";
 import { getApiSession } from "@/lib/api/session";
-import type { ApiErrorBody, TokenPair } from "@/types/api";
+import type { ApiErrorBody } from "@/types/api";
 import { authApi } from "@/lib/api/auth";
 
 export class ApiError extends Error {
@@ -20,9 +20,9 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const tokens = await authApi.refreshToken(
-          getApiSession().getRefreshToken() ?? "",
-        );
+        // Refresh via the cookie-based Next.js route — the refresh token is
+        // an httpOnly cookie, never available to this in-memory client.
+        const tokens = await authApi.refresh();
         getApiSession().onRefreshed(tokens.access_token);
         return tokens.access_token;
       } catch {
@@ -46,6 +46,8 @@ export async function fetchJson<T>(
 ): Promise<T> {
   const { auth = true, retryAuth = true, headers, ...init } = options;
   const token = auth ? getApiSession().getAccessToken() : null;
+  const isFormData =
+    typeof FormData !== "undefined" && init.body instanceof FormData;
   const url =
     path.startsWith("http") || path.startsWith("/api/")
       ? path
@@ -55,7 +57,7 @@ export async function fetchJson<T>(
     credentials: "include",
     headers: {
       Accept: "application/json",
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(init.body && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },

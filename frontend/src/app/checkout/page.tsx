@@ -43,8 +43,14 @@ export default function CheckoutPage() {
   });
   const order = useMutation({
     mutationFn: async (data: FormData) => {
+      // Build the address explicitly — the backend ShippingAddressInput forbids
+      // extra fields, so spreading the whole form (which carries `note`) 422s.
       const shipping_address: ShippingAddressInput = {
-        ...data,
+        full_name: data.full_name,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        country: data.country,
         postal_code: data.postal_code || null,
       };
       const created = await ordersApi.create({

@@ -6,6 +6,7 @@ import type {
   Page,
   Product,
   ProductDetail,
+  ProductImage,
   ProductQuery,
   ProductUpdate,
   ProductWrite,
@@ -56,4 +57,28 @@ export const productsApi = {
     fetchJson<{ message: string }>(`/catalog/products/${id}`, {
       method: "DELETE",
     }),
+  uploadImage: (
+    id: string,
+    file: File,
+    options: { is_primary?: boolean; sort_order?: number } = {},
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("is_primary", String(options.is_primary ?? false));
+    form.append("sort_order", String(options.sort_order ?? 0));
+    return fetchJson<ProductImage>(`/catalog/products/${id}/images`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  setPrimaryImage: (productId: string, imageId: string) =>
+    fetchJson<ProductImage>(
+      `/catalog/products/${productId}/images/${imageId}/primary`,
+      { method: "PATCH" },
+    ),
+  deleteImage: (productId: string, imageId: string) =>
+    fetchJson<{ message: string }>(
+      `/catalog/products/${productId}/images/${imageId}`,
+      { method: "DELETE" },
+    ),
 };

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 
 from src.core.dependencies import (
     DbSession,
@@ -21,6 +21,7 @@ from src.modules.catalog.schemas import (
     CategoryUpdateRequest,
     ProductCreateRequest,
     ProductDetailResponse,
+    ProductImageResponse,
     ProductResponse,
     ProductUpdateRequest,
 )
@@ -120,6 +121,52 @@ async def update_product(
 ) -> ProductDetailResponse:
     product = await ProductService(db).update(product_id, data)
     return ProductDetailResponse.model_validate(product)
+
+
+@router.post(
+    "/products/{product_id}/images",
+    response_model=ProductImageResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
+)
+async def upload_product_image(
+    product_id: uuid.UUID,
+    db: DbSession,
+    file: UploadFile = File(...),
+    is_primary: bool = Form(False),
+    sort_order: int = Form(0),
+) -> ProductImageResponse:
+    image = await ProductService(db).upload_image(
+        product_id,
+        file,
+        is_primary=is_primary,
+        sort_order=sort_order,
+    )
+    return ProductImageResponse.model_validate(image)
+
+
+@router.patch(
+    "/products/{product_id}/images/{image_id}/primary",
+    response_model=ProductImageResponse,
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
+)
+async def set_primary_product_image(
+    product_id: uuid.UUID, image_id: uuid.UUID, db: DbSession
+) -> ProductImageResponse:
+    image = await ProductService(db).set_primary_image(product_id, image_id)
+    return ProductImageResponse.model_validate(image)
+
+
+@router.delete(
+    "/products/{product_id}/images/{image_id}",
+    response_model=MessageResponse,
+    dependencies=[Depends(require_role(UserRole.OPERATOR, UserRole.ADMIN, UserRole.SUPERADMIN))],
+)
+async def delete_product_image(
+    product_id: uuid.UUID, image_id: uuid.UUID, db: DbSession
+) -> MessageResponse:
+    await ProductService(db).delete_image(product_id, image_id)
+    return MessageResponse(message="Product image deleted.")
 
 
 @router.delete(

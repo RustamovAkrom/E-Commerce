@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { notificationsApi } from "@/lib/api/notifications";
 import type { Notification } from "@/lib/api/notifications";
+import { useAuthStore } from "@/lib/stores/auth.store";
 
 const typeIcons: Record<string, typeof Bell> = {
   order: Package,
@@ -43,12 +44,17 @@ function formatRelative(dateStr: string): string {
 }
 
 export default function NotificationsPage() {
+  // Wait until the session is restored (token rehydrated after a reload) before
+  // querying — otherwise the request fires unauthenticated and 401s.
+  const initialized = useAuthStore((s) => s.initialized);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => notificationsApi.list(),
+    enabled: initialized && isAuthenticated,
   });
 
-  if (isLoading) return <LoadingSpinner />;
+  if (!initialized || isLoading) return <LoadingSpinner />;
   if (error)
     return (
       <EmptyState

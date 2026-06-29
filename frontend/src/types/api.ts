@@ -21,14 +21,14 @@ export interface PasswordChangeRequest { current_password: string; new_password:
 export interface UserAdminUpdateRequest { role?: UserRole; is_active?: boolean; is_verified?: boolean }
 
 export interface Category { id: string; name: string; slug: string; description: string | null; parent_id: string | null; sort_order: number; is_active: boolean }
-export interface CategoryCreate { name: string; slug: string; description?: string | null; parent_id?: string | null; sort_order?: number; is_active?: boolean }
+export interface CategoryCreate { name: string; description?: string | null; parent_id?: string | null; sort_order?: number; is_active?: boolean }
 export interface CategoryUpdate { name?: string; description?: string | null; parent_id?: string | null; sort_order?: number; is_active?: boolean }
 
 export interface ProductImage { id: string; url: string; is_primary: boolean; sort_order: number }
 export interface ProductAttribute { id: string; key: string; value: string }
 export interface Product { id: string; vendor_id: string | null; category_id: string; name: string; slug: string; description: string | null; sku: string | null; price: Money; currency: string; stock: number; is_active: boolean; created_at: string }
 export interface ProductDetail extends Product { images: ProductImage[]; attributes: ProductAttribute[] }
-export interface ProductWrite { category_id: string; vendor_id?: string | null; name: string; slug: string; description?: string | null; sku?: string | null; price: number; currency?: string; stock?: number; is_active?: boolean; attributes?: Array<{ key: string; value: string }> }
+export interface ProductWrite { category_id: string; vendor_id?: string | null; name: string; description?: string | null; sku?: string | null; price: number; currency?: string; stock?: number; is_active?: boolean; attributes?: Array<{ key: string; value: string }> }
 export type ProductUpdate = Partial<Omit<ProductWrite, "vendor_id" | "currency" | "attributes">>;
 export interface ProductQuery extends PaginationQuery { search?: string; category_id?: string; vendor_id?: string; min_price?: number; max_price?: number; in_stock?: boolean; is_active?: boolean; sort?: "created_at" | "-created_at" | "price" | "-price" | "name" | "-name" }
 
@@ -58,12 +58,14 @@ export interface Courier { id: string; user_id: string; phone: string | null; zo
 export interface CourierCreate { user_id: string; phone?: string | null; zone?: string | null }
 export interface CourierUpdate { phone?: string | null; zone?: string | null; is_active?: boolean }
 export interface DeliveryAssignment { id: string; order_id: string; courier_id: string | null; courier_name: string | null; status: string; created_at: string }
+export interface CourierDelivery { id: string; order_id: string; status: string; created_at: string; customer_name: string; phone: string | null; address: string; city: string; country: string; postal_code: string | null; total_amount: Money; currency: string }
 
-export interface VendorPublic { id: string; name: string; slug: string; description: string | null; is_active: boolean; created_at: string }
-export interface VendorResponse extends VendorPublic { user_id: string; status: string; commission_rate: number }
-export interface VendorApplyRequest { business_name: string; description?: string | null }
-export interface VendorUpdateRequest { business_name?: string; description?: string | null; commission_rate?: number }
-export interface VendorAdminUpdateRequest { status?: string; is_active?: boolean }
+export type VendorStatus = "pending" | "approved" | "rejected" | "suspended";
+export interface VendorPublic { id: string; name: string; slug: string; description: string | null; logo_url: string | null }
+export interface VendorResponse extends VendorPublic { user_id: string; contact_email: string | null; contact_phone: string | null; status: VendorStatus; is_active: boolean; commission_rate: number; created_at: string }
+export interface VendorApplyRequest { name: string; description?: string | null; contact_email?: string | null; contact_phone?: string | null }
+export interface VendorUpdateRequest { name?: string; description?: string | null; logo_url?: string | null; contact_email?: string | null; contact_phone?: string | null }
+export interface VendorAdminUpdateRequest { status?: VendorStatus; is_active?: boolean; commission_rate?: number }
 
 export interface Review { id: string; product_id: string; user_id: string; rating: number; title: string | null; comment: string | null; is_approved: boolean; created_at: string }
 export interface ReviewCreate { rating: number; title?: string | null; comment?: string | null }

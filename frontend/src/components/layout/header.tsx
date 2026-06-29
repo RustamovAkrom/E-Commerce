@@ -1,7 +1,8 @@
 ﻿"use client";
 import type { Route } from "next";
 import Link from "next/link";
-import { Menu, LogOut, ShoppingCart, UserRound, Bell } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Menu, LogOut, LayoutDashboard, UserRound, Bell } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { Button } from "@/components/ui/button";
@@ -11,10 +12,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
 import { config } from "@/lib/config";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import { notificationsApi } from "@/lib/api/notifications";
+import { dashboardPath, ROLE_LABEL } from "@/lib/auth/roles";
 
 interface NavLink {
   href: string;
@@ -27,11 +28,19 @@ const links: NavLink[] = [
 ];
 
 export function Header() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "operator";
-  const isCourier = user?.role === "courier";
   const isLoggedIn = !!user;
+
+  // Clear the session, then leave any protected area for the login screen.
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/login");
+  };
+  // Any non-customer role gets a back-office dashboard link.
+  const dashboardHref =
+    user && user.role !== "customer" ? dashboardPath(user.role) : null;
 
   const { data: notifications } = useQuery({
     queryKey: ["notifications-count"],
@@ -66,10 +75,10 @@ export function Header() {
                     {link.label}
                   </Link>
                 ))}
-                {isCourier && (
-                  <a href="/delivery/my-deliveries" className="block py-1">
-                    Yetkazuvlarim
-                  </a>
+                {user && dashboardHref && (
+                  <Link href={dashboardHref as Parameters<typeof Link>[0]["href"]} className="block py-1 font-semibold text-primary">
+                    {ROLE_LABEL[user.role]} paneli
+                  </Link>
                 )}
               </nav>
             </SheetContent>
@@ -87,10 +96,13 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
-            {isCourier && (
-              <a href="/delivery/my-deliveries" className="hover:text-primary">
-                Yetkazuvlarim
-              </a>
+            {user && dashboardHref && (
+              <Link
+                href={dashboardHref as Parameters<typeof Link>[0]["href"]}
+                className="font-semibold text-primary hover:text-primary/80"
+              >
+                {ROLE_LABEL[user.role]} paneli
+              </Link>
             )}
           </nav>
         </div>
@@ -120,10 +132,15 @@ export function Header() {
           </Button>
           {user && (
             <>
-              {isAdmin && (
-                <Button asChild variant="ghost" size="icon" title="Admin panel">
-                  <Link href="/admin">
-                    <ShoppingCart className="size-5" />
+              {dashboardHref && (
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  title={`${ROLE_LABEL[user.role]} paneli`}
+                >
+                  <Link href={dashboardHref as Parameters<typeof Link>[0]["href"]}>
+                    <LayoutDashboard className="size-5" />
                   </Link>
                 </Button>
               )}
@@ -131,7 +148,7 @@ export function Header() {
                 variant="ghost"
                 size="icon"
                 title="Chiqish"
-                onClick={() => { void logout(); }}
+                onClick={() => { void handleLogout(); }}
               >
                 <LogOut className="size-5" />
               </Button>

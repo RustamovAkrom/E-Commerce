@@ -1,6 +1,5 @@
 import { fetchJson } from "@/lib/api/client";
 import { apiV1 } from "@/lib/config";
-import { getApiSession } from "@/lib/api/session";
 import type {
   AuthResult,
   LoginRequest,
@@ -34,10 +33,8 @@ export const authApi = {
       }),
     }),
   refresh: async (): Promise<TokenPair> => {
-    const accessToken = getApiSession().getAccessToken();
-    // We can't refresh without the refresh token.
-    // The token pair is stored in memory during login/register.
-    // We need to re-fetch from the cookie-based endpoint.
+    // The refresh token is an httpOnly cookie; the Next.js route reads it and
+    // exchanges it with the backend, returning a fresh access token.
     const res = await fetch("/api/auth/refresh", {
       method: "POST",
       credentials: "include",

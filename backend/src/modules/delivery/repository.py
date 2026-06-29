@@ -5,9 +5,14 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from src.core.base_repository import BaseRepository
-from src.modules.delivery.models import Courier, DeliveryAssignment
+from src.modules.delivery.models import (
+    Courier,
+    DeliveryAssignment,
+    DeliveryStatus,
+)
 
 
 class CourierRepository(BaseRepository[Courier]):
@@ -43,6 +48,28 @@ class DeliveryAssignmentRepository(BaseRepository[DeliveryAssignment]):
                 DeliveryAssignment.courier_id == courier_id,
                 DeliveryAssignment.status == "pending",
             )
+            .order_by(DeliveryAssignment.created_at)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_active_for_courier(
+        self, courier_id: uuid.UUID
+    ) -> list[DeliveryAssignment]:
+        """Active (not-yet-delivered) deliveries with their order eager-loaded.
+
+        Returns both PENDING and PICKED_UP so the courier sees work in progress;
+        terminal states (delivered/failed/cancelled) are excluded.
+        """
+        stmt = (
+            select(DeliveryAssignment)
+            .where(
+                DeliveryAssignment.courier_id == courier_id,
+                DeliveryAssignment.status.in_(
+                    [DeliveryStatus.PENDING, DeliveryStatus.PICKED_UP]
+                ),
+            )
+            .options(selectinload(DeliveryAssignment.order))
             .order_by(DeliveryAssignment.created_at)
         )
         result = await self.session.execute(stmt)

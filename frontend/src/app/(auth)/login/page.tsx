@@ -1,4 +1,5 @@
 "use client";
+import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/lib/stores/auth.store";
+import { dashboardPath } from "@/lib/auth/roles";
 
 const schema = z.object({
   email: z.email("Email noto‘g‘ri"),
@@ -41,7 +43,10 @@ export default function LoginPage() {
     setSubmitError(null);
     try {
       await login({ email: data.email, password: data.password });
-      router.replace("/account");
+      const role = useAuthStore.getState().user?.role ?? null;
+      const next = new URLSearchParams(window.location.search).get("next");
+      const target = next && next.startsWith("/") ? next : dashboardPath(role);
+      router.replace(target as Route);
     } catch (err: unknown) {
       const msg =
         err instanceof Error

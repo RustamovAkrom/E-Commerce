@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -90,3 +91,124 @@ async def test_create_product_unauthorized(
     )
     assert resp.status_code == 403, resp.text
     assert resp.json()["error"] == "permission_denied"
+
+
+async def test_upload_product_image(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    admin_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    category = await CategoryFactory.create(db_session)
+    product = await ProductFactory.create(db_session, category=category)
+
+    def fake_upload_file(
+        content: bytes, original_filename: str, content_type: str
+    ) -> str:
+        assert content == b"fake-image"
+        assert original_filename == "product.png"
+        assert content_type == "image/png"
+        return "products/product.png"
+
+    def fake_public_url(object_name: str) -> str:
+        return f"http://localhost:9000/ecommerce/{object_name}"
+
+    monkeypatch.setattr(
+        "src.modules.catalog.service.upload_file",
+        fake_upload_file,
+    )
+    monkeypatch.setattr(
+        "src.modules.catalog.service.public_url",
+        fake_public_url,
+    )
+
+    resp = await client.post(
+        f"{CATALOG}/products/{product.id}/images",
+        files={"file": ("product.png", b"fake-image", "image/png")},
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["url"] == "http://localhost:9000/ecommerce/products/product.png"
+    assert body["is_primary"] is True
+    assert body["sort_order"] == 0
+
+    detail = await client.get(f"{CATALOG}/products/{product.id}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["images"][0]["id"] == body["id"]
+
+
+async def test_set_primary_product_image(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    admin_headers: dict[str, str],
+) -> None:
+    from src.modules.catalog.models import ProductImage
+
+    category = await CategoryFactory.create(db_session)
+    product = await ProductFactory.create(db_session, category=category)
+    first = ProductImage(
+        product_id=product.id,
+        url="http://localhost:9000/ecommerce/first.png",
+        is_primary=True,
+        sort_order=0,
+    )
+    second = ProductImage(
+        product_id=product.id,
+        url="http://localhost:9000/ecommerce/second.png",
+        is_primary=False,
+        sort_order=1,
+    )
+    db_session.add_all([first, second])
+    await db_session.commit()
+    await db_session.refresh(second)
+
+    resp = await client.patch(
+        f"{CATALOG}/products/{product.id}/images/{second.id}/primary",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["id"] == str(second.id)
+    assert resp.json()["is_primary"] is True
+
+
+async def test_delete_product_image(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    admin_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.modules.catalog.models import ProductImage
+
+    deleted: list[str] = []
+
+    def fake_delete_file(object_name: str) -> None:
+        deleted.append(object_name)
+
+    monkeypatch.setattr(
+        "src.modules.catalog.service.delete_file",
+        fake_delete_file,
+    )
+
+    category = await CategoryFactory.create(db_session)
+    product = await ProductFactory.create(db_session, category=category)
+    image = ProductImage(
+        product_id=product.id,
+        url="http://localhost:9000/ecommerce/products/remove.png",
+        is_primary=True,
+        sort_order=0,
+    )
+    db_session.add(image)
+    await db_session.commit()
+    await db_session.refresh(image)
+
+    resp = await client.delete(
+        f"{CATALOG}/products/{product.id}/images/{image.id}",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["message"] == "Product image deleted."
+    assert deleted == ["products/remove.png"]

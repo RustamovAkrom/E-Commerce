@@ -64,6 +64,12 @@ class DeliveryService:
     ) -> list[DeliveryAssignment]:
         return await self.assignments.get_pending_for_courier(courier_id)
 
+    async def list_active_for_courier(
+        self, courier_id: uuid.UUID
+    ) -> list[DeliveryAssignment]:
+        """Not-yet-delivered deliveries with their order eager-loaded."""
+        return await self.assignments.get_active_for_courier(courier_id)
+
     async def assign_nearest_courier(
         self, order_id: uuid.UUID, zone: str | None
     ) -> Courier | None:
